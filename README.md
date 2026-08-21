@@ -1,23 +1,19 @@
 # Mis Finanzas
 
-Base técnica de la PWA privada **Mis Finanzas**, creada con Next.js, TypeScript estricto y Tailwind CSS.
+PWA privada para finanzas personales y compartidas.
 
-## Requisitos
+## Desarrollo local
 
-- Node.js con Corepack disponible.
-- pnpm 11 o superior.
-
-## Desarrollo
-
-```bash
+```powershell
+Copy-Item .env.example .env.local
 corepack pnpm dev
 ```
 
-La aplicación se abre en `http://localhost:3000`.
+Abre `http://localhost:3000` y consulta `http://localhost:3000/api/health`.
 
-## Calidad
+## Verificación
 
-```bash
+```powershell
 corepack pnpm lint
 corepack pnpm typecheck
 corepack pnpm test
@@ -25,4 +21,9 @@ corepack pnpm build
 corepack pnpm test:e2e
 ```
 
-Las variables de entorno locales deben copiarse desde `.env.example`; nunca se deben confirmar secretos en el repositorio.
+## Despliegue
+
+1. Crea un repositorio privado en GitHub y agrega el remoto.
+2. Importa el repositorio en Vercel.
+3. Define `NEXT_PUBLIC_APP_URL` en Vercel.
+4. Conecta el dominio y configura los DNS solicitados por Vercel.
