@@ -1,6 +1,6 @@
 # Fases de implementación — Mis Finanzas
 
-**Estado general:** diseño aprobado; implementación aún no iniciada.
+**Estado general:** Fase 1 completada; Fase 2 pendiente de diseño y planificación.
 
 Este documento es el registro vivo del proyecto. Al finalizar cada fase se
 actualizarán estado, fecha, entregables, decisiones, pruebas ejecutadas,
@@ -93,3 +93,20 @@ riesgos y pendientes.
 - Resultado: todos los comandos finalizaron con código 0.
 - Decisiones: Vercel administra el despliegue; aún no existen autenticación ni persistencia financiera.
 - Próximo paso: diseñar y planificar la Fase 2 — identidad y seguridad.
+
+### Checkpoint de continuidad — 2026-08-20
+
+- La Fase 1 se cerró con los commits `3251c15`, `b060939`, `eeeb39f`,
+  `d08eaa2`, `5d346b3`, `f1c5712`, `b5d548f` y `86bb2cf`.
+- La aplicación incluye un shell público moderno, rutas públicas mínimas,
+  PWA instalable, fallback offline para navegación, `GET /api/health`, CI y
+  configuración de Vercel. No se desplegó ni se publicó el repositorio.
+- La compuerta final pasó: lint, typecheck, pruebas unitarias, build y 6
+  pruebas E2E en escritorio/iPhone emulado. Playwright usa `workers: 2` para
+  evitar que el servidor de desarrollo quede bloqueado en Windows.
+- Se preservaron cambios no relacionados: `tsconfig.tsbuildinfo` es generado
+  por TypeScript y `docs/superpowers/plans/` contiene planes de trabajo sin
+  seguimiento. No se deben borrar ni confirmar sin revisarlos al retomar.
+- Retomar por: revisar estos cambios pendientes y comenzar el diseño de la
+  Fase 2 — identidad y seguridad (Auth.js, aislamiento por espacio y pruebas
+  de autorización).
