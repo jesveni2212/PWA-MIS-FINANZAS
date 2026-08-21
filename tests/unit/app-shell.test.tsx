@@ -14,6 +14,10 @@ describe("AppShell", () => {
     expect(
       screen.getByRole("navigation", { name: "Navegación principal" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Resumen" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Movimientos" })).toHaveAttribute("href", "/movimientos");
+    expect(screen.getByRole("link", { name: "Grupos" })).toHaveAttribute("href", "/grupos");
+    expect(screen.getByRole("link", { name: "Perfil" })).toHaveAttribute("href", "/perfil");
     expect(screen.getByText("Contenido de prueba")).toBeInTheDocument();
   });
 });

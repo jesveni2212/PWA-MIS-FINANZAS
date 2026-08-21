@@ -23,8 +23,13 @@ export function AppShell({ children }: AppShellProps) {
       >
         <ul className="grid grid-cols-4 py-2">
           {site.navigation.map((item) => (
-            <li className="py-2 text-center text-xs font-medium text-muted" key={item}>
-              {item}
+            <li key={item.href}>
+              <a
+                className="block py-2 text-center text-xs font-medium text-muted focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                href={item.href}
+              >
+                {item.label}
+              </a>
             </li>
           ))}
         </ul>
