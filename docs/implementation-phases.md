@@ -8,7 +8,7 @@ riesgos y pendientes.
 
 | Fase | Estado | Objetivo | Evidencia de cierre |
 | --- | --- | --- | --- |
-| 1. Fundaciones | Pendiente | Repositorio, estándares, PWA base, CI y despliegue automatizado. | Build, lint, tipado, instalación PWA y pipeline verde. |
+| 1. Fundaciones | Completada | Repositorio, estándares, PWA base, CI y despliegue automatizado. | Build, lint, tipado, instalación PWA y pipeline verde. |
 | 2. Identidad y seguridad | Pendiente | Auth.js con correo/contraseña, Google y Apple; aislamiento de datos. | Flujos de acceso y pruebas de autorización. |
 | 3. Finanzas personales | Pendiente | Cuentas PYG/USD, movimientos, categorías, gastos fijos, deudas, dashboard y búsqueda. | Cálculos y filtros probados. |
 | 4. Captura y recordatorios | Pendiente | Alta rápida, OCR temporal sin imágenes persistidas y Web Push. | Confirmación OCR, suscripción y entrega de prueba. |
@@ -85,3 +85,11 @@ riesgos y pendientes.
    de Fase 1 y commit final.
 6. Solo después de la Fase 1: planificar e implementar Fase 2 (identidad y
    seguridad).
+
+### Fase 1 — 2026-08-20
+
+- Entregado: Next.js PWA responsive con shell moderno, manifest, service worker, salud HTTP, pruebas y CI.
+- Verificado: `corepack pnpm lint`, `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build`, `corepack pnpm test:e2e`.
+- Resultado: todos los comandos finalizaron con código 0.
+- Decisiones: Vercel administra el despliegue; aún no existen autenticación ni persistencia financiera.
+- Próximo paso: diseñar y planificar la Fase 2 — identidad y seguridad.
