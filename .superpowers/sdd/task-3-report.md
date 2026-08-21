@@ -37,7 +37,9 @@ Result: passed — 1 test passed; `PwaRegister` registers `/sw.js`.
 | `corepack pnpm test tests/unit/pwa-register.test.tsx` | Passed (1/1) |
 | `corepack pnpm typecheck` | Passed |
 | `git diff --check` | Passed |
-| `corepack pnpm test:e2e` | Blocked before tests: existing Next dev server PID 3340 owns the repository dev lock on port 3100, so the configured port-3000 server could not start. No unowned process was stopped. |
+| `corepack pnpm test:e2e` | Passed — 6 tests passed across desktop Chrome and iPhone/WebKit emulation. |
+
+The initial E2E attempt was blocked by the repository's existing Next dev-server lock. After its owner released the lock, the iPhone cases first revealed a missing local Playwright WebKit executable. Installing that test-runner browser (without changing project dependencies) enabled the successful full suite above.
 
 ## Scope confirmation
 
