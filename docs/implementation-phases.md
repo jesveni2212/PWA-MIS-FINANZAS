@@ -1,6 +1,6 @@
 # Fases de implementación — Mis Finanzas
 
-**Estado general:** Fase 1 completada; Fase 2 pendiente de diseño y planificación.
+**Estado general:** Fase 1 completada; Fase 2 integrada en la carpeta principal y pendiente de completar sus flujos de autenticación.
 
 Este documento es el registro vivo del proyecto. Al finalizar cada fase se
 actualizarán estado, fecha, entregables, decisiones, pruebas ejecutadas,
@@ -9,7 +9,7 @@ riesgos y pendientes.
 | Fase | Estado | Objetivo | Evidencia de cierre |
 | --- | --- | --- | --- |
 | 1. Fundaciones | Completada | Repositorio, estándares, PWA base, CI y despliegue automatizado. | Build, lint, tipado, instalación PWA y pipeline verde. |
-| 2. Identidad y seguridad | Pendiente | Auth.js con correo/contraseña, Google y Apple; aislamiento de datos. | Flujos de acceso y pruebas de autorización. |
+| 2. Identidad y seguridad | En curso | Auth.js con correo/contraseña, Google y Apple; aislamiento de datos. | Flujos de acceso y pruebas de autorización. |
 | 3. Finanzas personales | Pendiente | Cuentas PYG/USD, movimientos, categorías, gastos fijos, deudas, dashboard y búsqueda. | Cálculos y filtros probados. |
 | 4. Captura y recordatorios | Pendiente | Alta rápida, OCR temporal sin imágenes persistidas y Web Push. | Confirmación OCR, suscripción y entrega de prueba. |
 | 5. Finanzas compartidas | Pendiente | Grupos, roles, repartos, balances y liquidaciones manuales. | Balances y permisos verificados. |
@@ -110,3 +110,10 @@ riesgos y pendientes.
 - Retomar por: revisar estos cambios pendientes y comenzar el diseño de la
   Fase 2 — identidad y seguridad (Auth.js, aislamiento por espacio y pruebas
   de autorización).
+
+### Consolidación de Fase 2 — 2026-08-23
+
+- Se integró la rama de trabajo `phase-2-identity-security` en el repositorio principal. La carpeta externa era un worktree del mismo repositorio, no una aplicación independiente.
+- Se incorporaron las dependencias de Supabase, las rutas de autenticación, la migración y las pruebas SQL de aislamiento por espacio, junto con sus pruebas unitarias.
+- Verificado: ESLint finalizó correctamente; TypeScript pasó con `--incremental false` porque el archivo de caché existente no permite escritura; Vitest completó 7 pruebas correctamente; el build de Next.js generó los artefactos de producción.
+- Pendiente: completar los flujos de autenticación descritos para la Fase 2 y las pruebas de autorización de extremo a extremo.
