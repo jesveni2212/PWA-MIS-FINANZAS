@@ -1,12 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 const destinations = [
-  { label: "Movimientos", path: "/movimientos" },
-  { label: "Grupos", path: "/grupos" },
-  { label: "Perfil", path: "/perfil" },
+  { label: "Acceso", path: "/acceso" },
+  { label: "Registro", path: "/registro" },
 ];
 
-test("public navigation reaches each available destination", async ({ page }) => {
+test("public navigation reaches each access destination", async ({ page }) => {
   for (const destination of destinations) {
     await page.goto("/");
     await page.getByRole("link", { name: destination.label }).click();

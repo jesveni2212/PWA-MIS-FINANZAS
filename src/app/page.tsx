@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell";
+import Link from "next/link";
 
 export default function HomePage() {
   return (
@@ -11,6 +12,10 @@ export default function HomePage() {
           <article className="rounded-2xl bg-white/12 p-4 ring-1 ring-white/20"><p className="text-xs text-brand-foreground/70">Visión mensual</p><p className="mt-2 font-semibold">Todo en contexto</p></article>
           <article className="rounded-2xl bg-white/12 p-4 ring-1 ring-white/20"><p className="text-xs text-brand-foreground/70">Movimientos</p><p className="mt-2 font-semibold">Registro simple</p></article>
           <article className="rounded-2xl bg-white/12 p-4 ring-1 ring-white/20"><p className="text-xs text-brand-foreground/70">Grupos</p><p className="mt-2 font-semibold">Cuentas claras</p></article>
+        </div>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Link className="rounded-xl bg-white px-5 py-3 font-semibold text-brand" href="/registro">Quiero ser cliente</Link>
+          <Link className="rounded-xl border border-white/40 px-5 py-3 font-semibold text-brand-foreground" href="/acceso">Iniciar sesión</Link>
         </div>
       </section>
     </AppShell>
