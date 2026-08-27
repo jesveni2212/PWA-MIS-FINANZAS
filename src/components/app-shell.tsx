@@ -21,7 +21,7 @@ export function AppShell({ children }: AppShellProps) {
         aria-label="Navegación principal"
         className="fixed inset-x-0 bottom-0 border-t border-border/80 bg-surface/95 px-3 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:static sm:mx-auto sm:max-w-6xl sm:border-x"
       >
-        <ul className="grid grid-cols-3 py-2">
+        <ul className="grid grid-cols-2 py-2">
           {site.navigation.filter((item) => item.href !== "/").map((item) => (
             <li key={item.href}>
               <a
@@ -37,4 +37,5 @@ export function AppShell({ children }: AppShellProps) {
     </div>
   );
 }
+
 

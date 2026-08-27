@@ -41,3 +41,12 @@ Creado con el asunto solicitado: `feat: add auth UI without Supabase`; el SHA fi
 
 
 
+
+## Revisión posterior — ajuste de layout — 2026-08-26
+
+- Hallazgo atendido: la navegación pública tenía `grid-cols-3` aunque solo renderiza Acceso y Registro, dejando una celda vacía.
+- Cambio: `src/components/app-shell.tsx` usa ahora `grid-cols-2`, de modo que ambas acciones ocupan correctamente la fila.
+- Verificación: `node_modules\\.bin\\vitest.cmd run tests/unit/app-shell.test.tsx` — código 0, 1 archivo y 1 prueba pasada.
+- Verificación: `node_modules\\.bin\\playwright.cmd test tests/e2e/public-navigation.spec.ts` — código 0, 8 pruebas pasadas en escritorio y iPhone emulado.
+- Avisos: permanecen advertencias no bloqueantes del servidor dev sobre `NO_COLOR`/`FORCE_COLOR` y recursos cross-origin para `127.0.0.1`; no afectan las pruebas.
+- Auto-revisión: el número de columnas ahora coincide con el número de acciones; no se modificaron rutas, lógica de autorización, credenciales ni archivos locales ajenos.
