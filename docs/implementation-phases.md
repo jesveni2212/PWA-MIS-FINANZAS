@@ -117,3 +117,10 @@ riesgos y pendientes.
 - Se incorporaron las dependencias de Supabase, las rutas de autenticación, la migración y las pruebas SQL de aislamiento por espacio, junto con sus pruebas unitarias.
 - Verificado: ESLint finalizó correctamente; TypeScript pasó con `--incremental false` porque el archivo de caché existente no permite escritura; Vitest completó 7 pruebas correctamente; el build de Next.js generó los artefactos de producción.
 - Pendiente: completar los flujos de autenticación descritos para la Fase 2 y las pruebas de autorización de extremo a extremo.
+
+### Tarea 3 de Fase 2 — 2026-08-26
+
+- El shell público conserva únicamente las acciones de acceso y registro; se retiró el enlace público a Inicio de la navegación inferior.
+- Se añadieron pruebas E2E para `/perfil`, `/movimientos` y `/grupos`: cada ruta redirige a `/acceso` y conserva su ruta interna en `next`.
+- Verificación ejecutada: `node_modules\\.bin\\eslint.cmd .` (0), `node_modules\\.bin\\tsc.cmd --noEmit --incremental false` (0), `node_modules\\.bin\\vitest.cmd run` (0; 7 archivos, 12 pruebas), `node_modules\\.bin\\next.cmd build` (0) y `node_modules\\.bin\\playwright.cmd test` (0; 12 pruebas).
+- Observaciones externas: Playwright/Next.js mostró avisos de `NO_COLOR`/`FORCE_COLOR`, sistema de archivos lento y recursos dev bloqueados para `127.0.0.1`; no afectaron el resultado. No se añadieron credenciales, usuarios, sesiones ni llamadas de autenticación de Supabase.

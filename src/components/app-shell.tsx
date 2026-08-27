@@ -22,7 +22,7 @@ export function AppShell({ children }: AppShellProps) {
         className="fixed inset-x-0 bottom-0 border-t border-border/80 bg-surface/95 px-3 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:static sm:mx-auto sm:max-w-6xl sm:border-x"
       >
         <ul className="grid grid-cols-3 py-2">
-          {site.navigation.map((item) => (
+          {site.navigation.filter((item) => item.href !== "/").map((item) => (
             <li key={item.href}>
               <a
                 className="block py-2 text-center text-xs font-medium text-muted focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
@@ -37,3 +37,4 @@ export function AppShell({ children }: AppShellProps) {
     </div>
   );
 }
+

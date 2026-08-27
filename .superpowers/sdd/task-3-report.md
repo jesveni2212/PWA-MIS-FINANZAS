@@ -1,46 +1,43 @@
-# Task 3 — PWA installation and offline resilience
+# Task 3 — Ajustar navegación, comprobar y documentar
 
-## Delivered
+Fecha: 2026-08-26
 
-- Generated square `192×192` and `512×512` PNG icons in `public/brand/` from `LOGO.JPG`, preserving the source image unchanged.
-- Added the Next App Router manifest route at `/manifest.webmanifest` with the agreed Spanish PWA metadata and icon references.
-- Registered `/sw.js` once on client hydration through `PwaRegister()`.
-- Added a minimal service worker that precaches the landing page, claims updates promptly, removes prior shell caches, and falls back to the cached landing page for failed navigations.
-- Added desktop and iPhone Playwright projects plus landing/manifest smoke tests.
+## Resultado
 
-## TDD evidence
+Task 3 quedó implementada. El shell público ya no expone el enlace `Inicio` en su navegación inferior y conserva únicamente `Acceso` y `Registro`. La portada mantiene sus CTA de inicio de sesión y registro. Las rutas privadas `/perfil`, `/movimientos` y `/grupos` quedan cubiertas por pruebas E2E que verifican redirección a `/acceso` con un parámetro `next` interno y exacto.
 
-### RED
+No se agregaron credenciales de Supabase, usuarios, sesiones ni llamadas de autenticación.
 
-Command:
+## Comandos y resultados
 
-```powershell
-corepack pnpm test tests/unit/pwa-register.test.tsx
-```
+- `node_modules\\.bin\\eslint.cmd .` — código 0.
+- `node_modules\\.bin\\tsc.cmd --noEmit --incremental false` — código 0.
+- `node_modules\\.bin\\vitest.cmd run` — código 0; 7 archivos y 12 pruebas pasaron.
+- `node_modules\\.bin\\next.cmd build` — código 0; compilación, TypeScript, generación estática y optimización completadas.
+- `node_modules\\.bin\\playwright.cmd test` — código 0; 12 pruebas pasaron en escritorio y iPhone emulado.
 
-Result: failed as expected because `@/components/pwa-register` did not exist.
+Avisos observados, sin impacto: advertencia de configuración nativa futura de Vite, `NO_COLOR` ignorado por `FORCE_COLOR`, sistema de archivos lento y bloqueo de recursos dev cross-origin para `127.0.0.1`. Ninguno produjo fallo.
 
-### GREEN
+## Archivos modificados
 
-Command:
+- `src/components/app-shell.tsx`: filtra el enlace raíz `/` de la navegación pública.
+- `tests/unit/app-shell.test.tsx`: verifica Acceso/Registro y la ausencia de Inicio.
+- `tests/e2e/public-navigation.spec.ts`: ajusta los nombres visibles de los CTA y añade cobertura de las tres redirecciones protegidas con `next` interno.
+- `docs/implementation-phases.md`: registra el cierre y la evidencia de verificación de la tarea.
 
-```powershell
-corepack pnpm test tests/unit/pwa-register.test.tsx
-```
+Se preservaron fuera del commit los cambios locales ajenos en `tsconfig.tsbuildinfo`, `docs/superpowers/plans/2026-08-19-phase-1-foundations.md` y `docs/superpowers/plans/2026-08-20-phase-1-modern-foundations.md`.
 
-Result: passed — 1 test passed; `PwaRegister` registers `/sw.js`.
+## Auto-revisión
 
-## Verification
+- El contrato de navegación pública coincide con la fase anónima: acceso y registro son las únicas acciones del shell.
+- Las pruebas no dependen de credenciales ni de un backend Supabase.
+- `next` se compara mediante `URLSearchParams` y se exige que sea exactamente una ruta interna esperada.
+- El proxy existente sigue siendo un redirect optimista; la autorización real queda para el servidor cuando Supabase se configure.
+- No se incluyeron archivos generados ni cambios no relacionados.
 
-| Check | Result |
-| --- | --- |
-| `corepack pnpm test tests/unit/pwa-register.test.tsx` | Passed (1/1) |
-| `corepack pnpm typecheck` | Passed |
-| `git diff --check` | Passed |
-| `corepack pnpm test:e2e` | Passed — 6 tests passed across desktop Chrome and iPhone/WebKit emulation. |
+## Commit
 
-The initial E2E attempt was blocked by the repository's existing Next dev-server lock. After its owner released the lock, the iPhone cases first revealed a missing local Playwright WebKit executable. Installing that test-runner browser (without changing project dependencies) enabled the successful full suite above.
+Creado con el asunto solicitado: `feat: add auth UI without Supabase`; el SHA final se entrega junto con este reporte.
 
-## Scope confirmation
 
-No authentication, data capability, push delivery, dependency, health endpoint, or CI work was added.
+
