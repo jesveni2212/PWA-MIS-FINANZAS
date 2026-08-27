@@ -1,0 +1,65 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { CreateGroupForm } from "@/components/groups/create-group-form";
+import { createClient } from "@/lib/supabase/client";
+
+type SharedGroup = {
+  id: string;
+  name: string;
+  created_at: string;
+};
+
+export function GroupsContent() {
+  const [groups, setGroups] = useState<SharedGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadGroups() {
+      setLoading(true);
+      setError(false);
+
+      const { data, error: queryError } = await createClient()
+        .from("financial_spaces")
+        .select("id,name,created_at")
+        .eq("kind", "shared")
+        .order("created_at", { ascending: false });
+
+      if (!active) return;
+
+      if (queryError) {
+        setGroups([]);
+        setError(true);
+      } else {
+        setGroups((data ?? []) as SharedGroup[]);
+      }
+      setLoading(false);
+    }
+
+    void loadGroups();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <div className="grid gap-10">
+      <CreateGroupForm />
+      <section aria-labelledby="shared-groups-heading" className="grid gap-4">
+        <h2 className="text-2xl font-bold" id="shared-groups-heading">Grupos compartidos</h2>
+        {loading ? <p aria-live="polite">Cargando grupos compartidos…</p> : null}
+        {!loading && error ? <p aria-live="polite">No pudimos cargar tus grupos. Volvé a intentar.</p> : null}
+        {!loading && !error && groups.length === 0 ? <p aria-live="polite">Todavía no tenés grupos compartidos.</p> : null}
+        {!loading && !error && groups.length > 0 ? (
+          <ul aria-label="Lista de grupos compartidos" className="grid gap-3">
+            {groups.map((group) => <li className="rounded-xl border border-border px-4 py-3" key={group.id}>{group.name}</li>)}
+          </ul>
+        ) : null}
+      </section>
+    </div>
+  );
+}
