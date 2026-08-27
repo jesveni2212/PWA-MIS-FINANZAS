@@ -23,4 +23,3 @@ for (const path of ["/perfil", "/movimientos", "/grupos"]) {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Iniciar sesión");
   });
 }
-

@@ -21,4 +21,3 @@ describe("AppShell", () => {
     expect(screen.getByText("Contenido de prueba")).toBeInTheDocument();
   });
 });
-
