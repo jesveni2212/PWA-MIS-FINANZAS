@@ -1,63 +1,42 @@
-# Estabilización de calidad local — Diseño
+# Diseño: estabilización de calidad local
 
 ## Objetivo
 
-Establecer una línea base confiable para los cambios locales existentes antes de
-continuar con nuevas funcionalidades o con operaciones remotas de Supabase.
+Establecer una línea base reproducible para los cambios locales mediante lint,
+verificación de tipos, pruebas unitarias y compilación de producción, sin
+modificar código de aplicación, configuración ni el proyecto remoto de
+Supabase.
 
 ## Alcance
 
-La fase ejecutará lint, verificación de tipos, pruebas unitarias y build. Los
-fallos se clasificarán por su causa y se corregirán módulo a módulo:
-autenticación, perfil, cuentas, movimientos y grupos.
+Se ejecutarán los scripts existentes `lint`, `typecheck`, `test` y `build` en
+ese orden. Se conservará el resultado de cada uno y se clasificarán los
+diagnósticos por configuración, autenticación, perfil, cuentas, movimientos o
+grupos.
 
-Las migraciones remotas no forman parte de esta fase. No se ejecutará un push,
-repair, reset, pull ni otra operación que altere el proyecto remoto de
-Supabase.
+Los cambios en `next-env.d.ts`, `.next` y `tsconfig.tsbuildinfo` se tratarán
+como artefactos generados: se observarán, pero no se editarán ni se tomarán
+como una corrección.
 
-## Diseño
+## Flujo y manejo de fallos
 
-La validación inicial no modifica el código de aplicación: su función es
-producir evidencia de los fallos actuales. Cada fallo se asignará a un único
-módulo o a la configuración compartida, evitando combinar cambios sin relación.
-
-Cada corrección seguirá un ciclo pequeño y verificable: definir o ajustar la
-prueba que describe el comportamiento, aplicar el cambio mínimo en el módulo
-responsable, ejecutar la prueba enfocada y luego repetir los controles globales
-al terminar el conjunto de correcciones.
-
-## Límites técnicos
-
-- Se conserva Next.js App Router y las convenciones de Next.js 16.3.1.
-- No se añaden dependencias.
-- Las validaciones de TypeScript se ejecutan mediante `tsc --noEmit`; no se
-  omiten errores de producción.
-- Se preservan autenticación obligatoria, autorización del lado servidor y RLS
-  como límites de acceso a datos.
-- No se exponen valores de `.env.local` ni datos financieros en salidas o logs.
+Cada comando se ejecuta de forma independiente, de modo que un fallo no impide
+capturar el estado de los demás controles. Si todos finalizan correctamente,
+la fase concluye con una línea base aprobada. Si un fallo exige cambiar código
+o configuración, no se corrige en esta fase: se crea una especificación
+focalizada para un único módulo, con comportamiento observable y una prueba de
+regresión, antes de planificar e implementar la corrección.
 
 ## Criterios de aceptación
 
-- `corepack pnpm lint` finaliza con código 0.
-- `corepack pnpm typecheck` finaliza con código 0.
-- `corepack pnpm test` finaliza con código 0.
-- `corepack pnpm build` finaliza con código 0.
-- Los cambios resultantes están limitados a causas observadas y acompañados por
-  pruebas pertinentes cuando se modifica comportamiento.
-
-## Riesgos y tratamiento
-
-Los artefactos generados por Next.js y TypeScript pueden cambiar durante las
-validaciones. No se tratarán como cambios funcionales ni se editarán a mano;
-se confirmará su condición antes del cierre de la fase.
-
-Los comandos que contacten Supabase pueden requerir una sesión interactiva o
-red. Esos comandos se posponen para la fase remota y no bloquean la corrección
-local.
+- Se registran los códigos de salida y diagnósticos de los cuatro controles.
+- No se añaden dependencias ni se desactivan verificaciones para ocultar
+  errores.
+- No se realizan operaciones remotas de Supabase.
+- Cualquier posible corrección funcional queda delimitada en una especificación
+  independiente antes de editar código.
 
 ## Revisión propia
 
-- Sin marcadores pendientes ni requisitos ambiguos.
-- El alcance se limita a una sola fase verificable.
-- Los criterios de aceptación se corresponden con los comandos definidos en el
-  proyecto.
+El alcance contiene un único objetivo, define el orden de validación, separa
+artefactos generados de cambios funcionales y no deja decisiones pendientes.
