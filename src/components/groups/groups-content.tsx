@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CreateGroupForm } from "@/components/groups/create-group-form";
 import { createClient } from "@/lib/supabase/client";
 
@@ -15,44 +15,44 @@ export function GroupsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    let active = true;
+  const loadGroups = useCallback(async () => {
+    setLoading(true);
+    setError(false);
 
-    async function loadGroups() {
-      setLoading(true);
-      setError(false);
+    const { data, error: queryError } = await createClient()
+      .from("financial_spaces")
+      .select("id,name,created_at")
+      .eq("kind", "shared")
+      .order("created_at", { ascending: false });
 
-      const { data, error: queryError } = await createClient()
-        .from("financial_spaces")
-        .select("id,name,created_at")
-        .eq("kind", "shared")
-        .order("created_at", { ascending: false });
-
-      if (!active) return;
-
-      if (queryError) {
-        setGroups([]);
-        setError(true);
-      } else {
-        setGroups((data ?? []) as SharedGroup[]);
-      }
-      setLoading(false);
+    if (queryError) {
+      setGroups([]);
+      setError(true);
+    } else {
+      setGroups((data ?? []) as SharedGroup[]);
     }
-
-    void loadGroups();
-
-    return () => {
-      active = false;
-    };
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => void loadGroups(), 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [loadGroups]);
 
   return (
     <div className="grid gap-10">
-      <CreateGroupForm />
+      <CreateGroupForm onCreated={loadGroups} />
       <section aria-labelledby="shared-groups-heading" className="grid gap-4">
         <h2 className="text-2xl font-bold" id="shared-groups-heading">Grupos compartidos</h2>
         {loading ? <p aria-live="polite">Cargando grupos compartidos…</p> : null}
-        {!loading && error ? <p aria-live="polite">No pudimos cargar tus grupos. Volvé a intentar.</p> : null}
+        {!loading && error ? (
+          <div className="grid justify-items-start gap-3" role="status">
+            <p>No pudimos cargar tus grupos. Volvé a intentar.</p>
+            <button className="rounded-xl border border-border px-4 py-2 font-semibold" onClick={() => void loadGroups()} type="button">
+              Reintentar
+            </button>
+          </div>
+        ) : null}
         {!loading && !error && groups.length === 0 ? <p aria-live="polite">Todavía no tenés grupos compartidos.</p> : null}
         {!loading && !error && groups.length > 0 ? (
           <ul aria-label="Lista de grupos compartidos" className="grid gap-3">

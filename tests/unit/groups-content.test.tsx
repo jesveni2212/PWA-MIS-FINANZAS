@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GroupsContent } from "@/components/groups/groups-content";
 import { createClient } from "@/lib/supabase/client";
@@ -62,5 +62,21 @@ describe("GroupsContent", () => {
 
     expect(await screen.findByText("No pudimos cargar tus grupos. Volvé a intentar.")).toBeInTheDocument();
     expect(screen.queryByText("network failure")).not.toBeInTheDocument();
+  });
+
+  it("retries the query when requested", async () => {
+    const query = mockQuery(Promise.resolve({ data: null, error: { message: "network failure" } }));
+    query.order.mockResolvedValueOnce({ data: null, error: { message: "network failure" } });
+    query.order.mockResolvedValueOnce({
+      data: [{ id: "group-1", name: "Casa", created_at: "2026-08-27T10:00:00Z" }],
+      error: null,
+    });
+
+    render(<GroupsContent />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
+
+    await waitFor(() => expect(screen.getByText("Casa")).toBeInTheDocument());
+    expect(query.order).toHaveBeenCalledTimes(2);
   });
 });
