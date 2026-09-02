@@ -28,12 +28,16 @@ function getServerBalanceVisibilitySnapshot() {
   return false;
 }
 
-export function AppShell({ children }: AppShellProps) {
-  const balancesHidden = useSyncExternalStore(
+export function useBalancesHidden() {
+  return useSyncExternalStore(
     subscribeToBalanceVisibility,
     getBalanceVisibilitySnapshot,
     getServerBalanceVisibilitySnapshot,
   );
+}
+
+export function AppShell({ children }: AppShellProps) {
+  const balancesHidden = useBalancesHidden();
 
   function toggleBalanceVisibility() {
     const nextHidden = !balancesHidden;
