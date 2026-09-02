@@ -1,6 +1,6 @@
 begin;
 
-select plan(4);
+select plan(5);
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -27,6 +27,7 @@ select * from created_movement;
 
 select is((select kind from ana_movement), 'expense', 'A member can create an expense');
 select is((select amount from ana_movement), 12500.50::numeric, 'Amounts retain two-decimal precision');
+select is((select count(*)::int from public.personal_transactions where created_by = '55555555-5555-4555-8555-555555555555'::uuid), 0, 'Legacy movements do not create personal ledger transactions');
 
 select set_config('request.jwt.claim.sub', '66666666-6666-4666-8666-666666666666', true);
 select is((select count(*)::int from public.movements where id = (select id from ana_movement)), 0, 'A non-member cannot read a movement');
