@@ -96,6 +96,8 @@ declare
   v_destination_space_id uuid;
   v_source_account_type text;
   v_destination_account_type text;
+  v_source_currency text;
+  v_destination_currency text;
   v_transaction_id uuid;
   v_item jsonb;
   v_description text;
@@ -129,8 +131,8 @@ begin
   end if;
 
   if p_source_account_id is not null then
-    select accounts.space_id, accounts.account_type
-      into v_source_space_id, v_source_account_type
+    select accounts.space_id, accounts.account_type, accounts.currency
+      into v_source_space_id, v_source_account_type, v_source_currency
     from public.accounts
     join public.financial_spaces
       on financial_spaces.id = accounts.space_id
@@ -149,8 +151,8 @@ begin
   end if;
 
   if p_destination_account_id is not null then
-    select accounts.space_id, accounts.account_type
-      into v_destination_space_id, v_destination_account_type
+    select accounts.space_id, accounts.account_type, accounts.currency
+      into v_destination_space_id, v_destination_account_type, v_destination_currency
     from public.accounts
     join public.financial_spaces
       on financial_spaces.id = accounts.space_id
@@ -176,10 +178,12 @@ begin
       and (p_source_account_id is null or p_destination_account_id is not null or v_source_account_type <> 'credit_card'))
     or (p_operation_type = 'transfer'
       and (p_source_account_id is null or p_destination_account_id is null or p_source_account_id = p_destination_account_id
-        or v_source_account_type = 'credit_card' or v_destination_account_type = 'credit_card'))
+        or v_source_account_type = 'credit_card' or v_destination_account_type = 'credit_card'
+        or v_source_currency <> v_destination_currency))
     or (p_operation_type = 'card_payment'
       and (p_source_account_id is null or p_destination_account_id is null or p_source_account_id = p_destination_account_id
-        or v_source_account_type = 'credit_card' or v_destination_account_type <> 'credit_card')) then
+        or v_source_account_type = 'credit_card' or v_destination_account_type <> 'credit_card'
+        or v_source_currency <> v_destination_currency)) then
     raise exception using errcode = '22023', message = 'Invalid account combination';
   end if;
 
@@ -271,6 +275,7 @@ select
   end as current_balance
 from public.accounts a
 left join public.personal_transactions t on a.id in (t.source_account_id, t.destination_account_id)
+join public.financial_spaces s on s.id = a.space_id and s.kind = 'personal'
 group by a.id;
 
 revoke all on public.personal_account_balances from anon, authenticated;
