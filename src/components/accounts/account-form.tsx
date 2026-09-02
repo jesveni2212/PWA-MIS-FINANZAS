@@ -62,8 +62,8 @@ export function AccountForm({ onCreated }: AccountFormProps) {
     setName("");
     setOtherInstitution("");
     setOpeningValue("0");
-    setMessage("Cuenta creada.");
     await onCreated?.();
+    setMessage("Cuenta creada.");
   }
 
   return <form className="grid gap-5 rounded-2xl border border-border bg-panel p-5 sm:p-6" onSubmit={handleSubmit}>

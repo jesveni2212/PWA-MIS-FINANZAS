@@ -144,8 +144,7 @@ export async function loadPersonalLedger(): Promise<PersonalLedger> {
       itemsByTransaction.set(item.transaction_id, transactionItems);
     }
 
-    return {
-      accounts: ((balances ?? []) as BalanceRow[]).map((account) => ({
+    const accounts = ((balances ?? []) as BalanceRow[]).map((account) => ({
         id: account.id,
         spaceId: account.space_id,
         accountType: account.account_type,
@@ -153,13 +152,18 @@ export async function loadPersonalLedger(): Promise<PersonalLedger> {
         name: account.name,
         currency: account.currency,
         currentBalance: numberValue(account.current_balance),
-      })),
+      }));
+    const currencyByAccountId = new Map(accounts.map((account) => [account.id, account.currency]));
+
+    return {
+      accounts,
       transactions: transactionRows.map((transaction): PersonalTransaction => ({
         id: transaction.id,
         operationType: transaction.operation_type,
         sourceAccountId: transaction.source_account_id,
         destinationAccountId: transaction.destination_account_id,
         amount: numberValue(transaction.amount),
+        currency: currencyByAccountId.get(transaction.source_account_id ?? "") ?? currencyByAccountId.get(transaction.destination_account_id ?? "") ?? null,
         occurredOn: transaction.occurred_on,
         category: transaction.category,
         note: transaction.note,

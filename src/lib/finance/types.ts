@@ -32,6 +32,7 @@ export type PersonalTransaction = {
   sourceAccountId: string | null;
   destinationAccountId: string | null;
   amount: number;
+  currency: string | null;
   occurredOn: string;
   category: string | null;
   note: string | null;
@@ -55,4 +56,3 @@ export type PersonalTransactionDraft = {
   merchant?: string | null;
   items?: PurchaseItemDraft[];
 };
-

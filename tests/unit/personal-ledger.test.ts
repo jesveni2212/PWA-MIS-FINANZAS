@@ -49,11 +49,23 @@ describe("personal ledger helpers", () => {
 
     await expect(loadPersonalLedger()).resolves.toEqual({
       accounts: [accounts[0]],
-      transactions: [{ id: "transaction-1", operationType: "expense", sourceAccountId: "cash-1", destinationAccountId: null, amount: 8500, occurredOn: "2026-09-01", category: "Comida", note: null, merchant: "Biggie", items: [{ id: "item-1", transactionId: "transaction-1", description: "Leche", quantity: 2, unitPrice: 4250 }] }],
+      transactions: [{ id: "transaction-1", operationType: "expense", sourceAccountId: "cash-1", destinationAccountId: null, amount: 8500, currency: "PYG", occurredOn: "2026-09-01", category: "Comida", note: null, merchant: "Biggie", items: [{ id: "item-1", transactionId: "transaction-1", description: "Leche", quantity: 2, unitPrice: 4250 }] }],
     });
     expect(spaceQuery.eq).toHaveBeenCalledWith("kind", "personal");
     expect(balancesQuery.eq).toHaveBeenCalledWith("space_id", "personal-1");
     expect(transactionsQuery.eq).toHaveBeenCalledWith("personal_space_id", "personal-1");
+  });
+
+  it("derives a USD transaction currency from its involved account", async () => {
+    const spaceQuery = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn().mockResolvedValue({ data: { id: "personal-1" }, error: null }) };
+    const balancesQuery = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockResolvedValue({ data: [{ id: "usd-1", space_id: "personal-1", account_type: "bank", institution: "GNB", name: "Dólares", currency: "USD", current_balance: "100" }], error: null }) };
+    const transactionsQuery = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn() };
+    transactionsQuery.order.mockImplementationOnce(function (this: typeof transactionsQuery) { return this; }).mockResolvedValue({ data: [{ id: "transaction-usd", operation_type: "income", source_account_id: null, destination_account_id: "usd-1", amount: "25.5", occurred_on: "2026-09-01", category: "Freelance", note: null, merchant: null }], error: null });
+    const itemsQuery = { select: vi.fn().mockReturnThis(), in: vi.fn().mockResolvedValue({ data: [], error: null }) };
+    const from = vi.fn().mockReturnValueOnce(spaceQuery).mockReturnValueOnce(balancesQuery).mockReturnValueOnce(transactionsQuery).mockReturnValueOnce(itemsQuery);
+    mockedCreateClient.mockReturnValue({ from } as never);
+
+    await expect(loadPersonalLedger()).resolves.toMatchObject({ transactions: [expect.objectContaining({ id: "transaction-usd", currency: "USD" })] });
   });
 
   it("uses the sole personal-transaction RPC and keeps Supabase errors generic", async () => {
