@@ -1,6 +1,44 @@
 @import "tailwindcss";
 
-:root { --background: #f4f8f6; --foreground: #14211d; --surface: #ffffff; --border: #d8e4df; --muted: #64746e; --brand: #087e6b; --brand-bright: #12a78c; --brand-soft: #dff8f0; --brand-foreground: #f6fffc; }
-@theme inline { --color-background: var(--background); --color-foreground: var(--foreground); --color-surface: var(--surface); --color-border: var(--border); --color-muted: var(--muted); --color-brand: var(--brand); --color-brand-bright: var(--brand-bright); --color-brand-soft: var(--brand-soft); --color-brand-foreground: var(--brand-foreground); --font-sans: var(--font-geist-sans); --font-mono: var(--font-geist-mono); }
+:root {
+  --ink: #0d0f0d;
+  --panel: #171a17;
+  --panel-raised: #202520;
+  --line: #343b33;
+  --text: #f4f4ed;
+  --muted: #9da69b;
+  --signal: #baff7b;
+  --danger: #ffb28b;
+  --background: var(--ink);
+  --foreground: var(--text);
+  --surface: var(--panel);
+  --border: var(--line);
+  --brand: var(--signal);
+  --brand-bright: #e2ffc6;
+  --brand-soft: #263224;
+  --brand-foreground: var(--ink);
+}
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+  --color-panel-raised: var(--panel-raised);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-signal: var(--signal);
+  --color-danger: var(--danger);
+  --color-brand: var(--brand);
+  --color-brand-bright: var(--brand-bright);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-foreground: var(--brand-foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: Georgia, "Times New Roman", serif;
+}
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; background: var(--background); color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }
+body { margin: 0; min-width: 320px; background: var(--ink); color: var(--text); font-family: var(--font-geist-sans), ui-sans-serif, sans-serif; }
+
+::selection { background: var(--signal); color: var(--ink); }
