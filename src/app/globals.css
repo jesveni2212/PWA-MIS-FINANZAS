@@ -34,11 +34,11 @@
   --color-brand-bright: var(--brand-bright);
   --color-brand-soft: var(--brand-soft);
   --color-brand-foreground: var(--brand-foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-serif: Georgia, "Times New Roman", serif;
 }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; background: var(--ink); color: var(--text); font-family: var(--font-geist-sans), ui-sans-serif, sans-serif; }
+body { margin: 0; min-width: 320px; background: var(--ink); color: var(--text); font-family: var(--font-sans); }
 
 ::selection { background: var(--signal); color: var(--ink); }

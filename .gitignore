@@ -7,3 +7,22 @@ test-results/
 .env.local
 .env.*.local
 !.env.example
+
+# Documentación pública permitida: solo el README del proyecto.
+*.md
+!README.md
+
+# Material interno del agente y artefactos locales.
+.superpowers/
+dev-server.log
+*.tsbuildinfo
+supabase/.temp/
+supabase/.branches/
+
+# Recursos de plantilla no utilizados por la aplicación.
+LOGO.JPG
+public/file.svg
+public/globe.svg
+public/next.svg
+public/vercel.svg
+public/window.svg

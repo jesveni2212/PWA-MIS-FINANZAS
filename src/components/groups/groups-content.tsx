@@ -56,7 +56,7 @@ export function GroupsContent() {
         {!loading && !error && groups.length === 0 ? <p aria-live="polite">Todavía no tenés grupos compartidos.</p> : null}
         {!loading && !error && groups.length > 0 ? (
           <ul aria-label="Lista de grupos compartidos" className="grid gap-3">
-            {groups.map((group) => <li className="rounded-xl border border-border px-4 py-3" key={group.id}>{group.name}</li>)}
+            {groups.map((group) => <li className="rounded-2xl border border-border bg-panel p-4" key={group.id}><div className="flex items-center justify-between gap-3"><span className="font-semibold">{group.name}</span><span className="rounded-full border border-signal/40 px-2 py-1 text-xs text-signal">Compartido</span></div><p className="mt-2 text-sm text-muted">Grupo compartido · creado {new Date(group.created_at).toLocaleDateString("es-PY")}</p></li>)}
           </ul>
         ) : null}
       </section>

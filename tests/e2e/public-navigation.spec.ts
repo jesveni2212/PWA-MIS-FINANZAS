@@ -1,21 +1,20 @@
 import { expect, test } from "@playwright/test";
 
-const destinations = [
-  { label: "Iniciar sesión", path: "/acceso" },
-  { label: "Quiero ser cliente", path: "/registro" },
-];
+test("las rutas públicas de acceso y registro son navegables", async ({ page }) => {
+  await page.goto("/acceso");
+  await expect(page).toHaveURL(/\/acceso$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Iniciar sesión");
 
-test("public navigation reaches each access destination", async ({ page }) => {
-  for (const destination of destinations) {
-    await page.goto("/");
-    await page.getByRole("link", { name: destination.label }).click();
+  await page.getByRole("link", { name: "Quiero ser cliente" }).click();
+  await expect(page).toHaveURL(/\/registro$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Quiero ser cliente");
 
-    await expect(page).toHaveURL(new RegExp(`${destination.path}$`));
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(destination.label);
-  }
+  await page.getByRole("link", { name: "Iniciar sesión" }).click();
+  await expect(page).toHaveURL(/\/acceso$/);
 });
+
 for (const path of ["/perfil", "/movimientos", "/grupos"]) {
-  test(`${path} redirects anonymous users to access with an internal return path`, async ({ page }) => {
+  test(`${path} redirige usuarios anónimos al acceso`, async ({ page }) => {
     await page.goto(path);
 
     await expect(page).toHaveURL(/\/acceso\?next=/);
