@@ -6,7 +6,7 @@ import { AuthConfigurationNotice } from "@/components/auth/auth-configuration-no
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/client";
 
-export function SignInForm({ next = "/resumen" }: { next?: string }) {
+export function SignInForm({ next = "/" }: { next?: string }) {
   const [showNotice, setShowNotice] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);

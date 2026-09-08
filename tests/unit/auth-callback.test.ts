@@ -30,7 +30,7 @@ describe("authentication callback", () => {
     const response = await GET(new NextRequest("https://app.test/auth/callback?next=https%3A%2F%2Fevil.test"));
 
     expect(createClient).not.toHaveBeenCalled();
-    expect(response.headers.get("location")).toBe("https://app.test/resumen");
+    expect(response.headers.get("location")).toBe("https://app.test/");
   });
 
   it("keeps auth paths and failed exchanges on a safe redirect", async () => {
@@ -39,6 +39,6 @@ describe("authentication callback", () => {
     const response = await GET(new NextRequest("https://app.test/auth/callback?code=invalid&next=%2Facceso"));
 
     expect(exchangeCodeForSession).toHaveBeenCalledWith("invalid");
-    expect(response.headers.get("location")).toBe("https://app.test/resumen");
+    expect(response.headers.get("location")).toBe("https://app.test/");
   });
 });

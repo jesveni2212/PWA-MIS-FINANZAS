@@ -1,5 +1,5 @@
 export const privatePaths = [
-  "/resumen",
+  "/",
   "/movimientos",
   "/grupos",
   "/perfil",
@@ -11,7 +11,7 @@ export const authPaths = [
   "/recuperar-contrasena",
 ] as const;
 
-const defaultReturnPath = "/resumen";
+const defaultReturnPath = "/";
 
 function normalizePathname(value: string): string {
   return value.split("?")[0]?.split("#")[0] ?? value;

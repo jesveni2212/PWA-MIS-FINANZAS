@@ -3,7 +3,7 @@ import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mis Finanzas",
+  title: "Mis Finanzas | Tus cuentas claras",
   description: "Tus finanzas personales y compartidas, claras y bajo control.",
 };
 
