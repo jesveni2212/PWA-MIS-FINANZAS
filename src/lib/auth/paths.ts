@@ -15,6 +15,8 @@ export const authPaths = [
 
 const defaultReturnPath = "/";
 const passwordRecoveryReturnPath = "/recuperar-contrasena?modo=restablecer";
+const safeReturnOrigin = "https://safe-return.invalid";
+const asciiControlCharacters = /[\u0000-\u001F\u007F]/;
 
 function normalizePathname(value: string): string {
   return value.split("?")[0]?.split("#")[0] ?? value;
@@ -25,7 +27,23 @@ export function isPrivatePath(pathname: string): boolean {
 }
 
 export function safeReturnPath(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+  if (
+    !value ||
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    value.includes("\\") ||
+    asciiControlCharacters.test(value)
+  ) {
+    return defaultReturnPath;
+  }
+
+  try {
+    const parsedReturnUrl = new URL(value, safeReturnOrigin);
+
+    if (parsedReturnUrl.origin !== safeReturnOrigin) {
+      return defaultReturnPath;
+    }
+  } catch {
     return defaultReturnPath;
   }
 

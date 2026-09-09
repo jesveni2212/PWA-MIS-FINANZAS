@@ -68,6 +68,17 @@ describe("authentication callback", () => {
     expect(response.headers.get("location")).toBe("https://app.test/");
   });
 
+  it.each([
+    ["tab", "%2F%09%2Fevil.test"],
+    ["newline", "%2F%0A%2Fevil.test"],
+  ])("rejects a decoded %s in the next value", async (_label, nextValue) => {
+    const { GET } = await import("@/app/auth/callback/route");
+    const response = await GET(new NextRequest(`https://app.test/auth/callback?next=${nextValue}`));
+
+    expect(createClient).not.toHaveBeenCalled();
+    expect(response.headers.get("location")).toBe("https://app.test/");
+  });
+
   it("keeps auth paths and failed exchanges on a safe redirect", async () => {
     exchangeCodeForSession.mockResolvedValue({ error: { message: "invalid code" } });
     const { GET } = await import("@/app/auth/callback/route");
