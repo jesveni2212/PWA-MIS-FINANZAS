@@ -5,7 +5,7 @@ import { PersonalFinanceProvider } from "@/components/finance/personal-finance-p
 import { MovementsContent } from "@/components/movements/movements-content";
 import { getServerSessionData } from "@/lib/auth/server-session";
 import { loadPersonalLedgerServer } from "@/lib/finance/personal-ledger-server";
-import type { OperationType } from "@/lib/finance/types";
+import type { OperationType, PersonalLedger } from "@/lib/finance/types";
 
 const operationTypes: OperationType[] = ["income", "expense", "card_purchase", "transfer", "card_payment"];
 
@@ -13,12 +13,19 @@ export default async function MovimientosPage({ searchParams }: { searchParams: 
   const session = await getServerSessionData();
   if (!session) redirect("/acceso");
 
-  const initialLedger = await loadPersonalLedgerServer(50);
+  let initialLedger: PersonalLedger = { accounts: [], transactions: [] };
+  let initialLedgerUpdatedAt: string | null = null;
+  try {
+    initialLedger = await loadPersonalLedgerServer(50);
+    initialLedgerUpdatedAt = new Date().toISOString();
+  } catch {
+    // The client provider may safely recover from its per-user IndexedDB cache.
+  }
   const tipo = (await searchParams).tipo;
   const initialOperationType = typeof tipo === "string" && operationTypes.includes(tipo as OperationType) ? tipo as OperationType : undefined;
 
   return (
-    <PersonalFinanceProvider initialLedger={initialLedger} userId={session.userId}>
+    <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt={initialLedgerUpdatedAt} userId={session.userId}>
       <AppShell displayName={session.displayName}>
         <section className="rounded-[2rem] bg-surface p-7 shadow-sm ring-1 ring-border/70 sm:p-12">
           <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl">Movimientos</h1>

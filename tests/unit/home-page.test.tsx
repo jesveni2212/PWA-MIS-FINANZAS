@@ -40,6 +40,7 @@ describe("HomePage", () => {
     expect(redirect).not.toHaveBeenCalled();
     expect(element.props.userId).toBe("user-1");
     expect(element.props.initialLedger).toBe(initialLedger);
+    expect(typeof element.props.initialLedgerUpdatedAt).toBe("string");
     expect(loadPersonalLedgerServer).toHaveBeenCalledWith(50);
   });
 });

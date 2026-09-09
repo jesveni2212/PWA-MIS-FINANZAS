@@ -60,4 +60,14 @@ describe("offline storage", () => {
     await expect(writeLedgerCache("user-a", ledger, "2026-09-09T00:00:00.000Z")).rejects.toBeInstanceOf(OfflineStorageUnavailableError);
     await expect(readLedgerCache("user-a")).resolves.toBeNull();
   });
+
+  it("normalizes adapter open, read, and write failures without exposing browser errors", async () => {
+    const failingAdapter = adapter();
+    failingAdapter.readLedger = vi.fn().mockRejectedValue(new DOMException("blocked", "SecurityError"));
+    failingAdapter.writeLedger = vi.fn().mockRejectedValue(new DOMException("quota", "QuotaExceededError"));
+    setOfflineStorageAdapterForTests(failingAdapter);
+
+    await expect(readLedgerCache("user-a")).resolves.toBeNull();
+    await expect(writeLedgerCache("user-a", ledger, "2026-09-09T00:00:00.000Z")).rejects.toBeInstanceOf(OfflineStorageUnavailableError);
+  });
 });

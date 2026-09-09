@@ -147,8 +147,12 @@ const indexedDbAdapter: OfflineStorageAdapter = {
 };
 
 function getAdapter(): OfflineStorageAdapter | null {
-  if (adapterForTests) return adapterForTests;
-  return globalThis.indexedDB ? indexedDbAdapter : null;
+  try {
+    if (adapterForTests) return adapterForTests;
+    return globalThis.indexedDB ? indexedDbAdapter : null;
+  } catch {
+    return null;
+  }
 }
 
 function requireAdapter(): OfflineStorageAdapter {
@@ -162,17 +166,29 @@ function stableId(): string {
   return globalThis.crypto.randomUUID();
 }
 
+function unavailable(error: unknown): OfflineStorageUnavailableError {
+  return error instanceof OfflineStorageUnavailableError ? error : new OfflineStorageUnavailableError();
+}
+
 export async function readLedgerCache(userId: string): Promise<{ ledger: PersonalLedger; updatedAt: string } | null> {
   assertUserId(userId);
-  const adapter = getAdapter();
-  if (!adapter) return null;
-  const record = await adapter.readLedger(userId);
-  return record?.userId === userId ? { ledger: record.ledger, updatedAt: record.updatedAt } : null;
+  try {
+    const adapter = getAdapter();
+    if (!adapter) return null;
+    const record = await adapter.readLedger(userId);
+    return record?.userId === userId ? { ledger: record.ledger, updatedAt: record.updatedAt } : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function writeLedgerCache(userId: string, ledger: PersonalLedger, updatedAt: string): Promise<void> {
   assertUserId(userId);
-  await requireAdapter().writeLedger({ userId, ledger, updatedAt });
+  try {
+    await requireAdapter().writeLedger({ userId, ledger, updatedAt });
+  } catch (error) {
+    throw unavailable(error);
+  }
 }
 
 export async function enqueueTransaction(userId: string, draft: PersonalTransactionDraft): Promise<PendingTransaction> {
@@ -187,32 +203,52 @@ export async function enqueueTransaction(userId: string, draft: PersonalTransact
     status: "pending",
     lastError: null,
   };
-  await requireAdapter().addOutbox(record);
+  try {
+    await requireAdapter().addOutbox(record);
+  } catch (error) {
+    throw unavailable(error);
+  }
   return record;
 }
 
 export async function listPendingTransactions(userId: string): Promise<PendingTransaction[]> {
   assertUserId(userId);
-  const adapter = getAdapter();
-  if (!adapter) return [];
-  return (await adapter.listOutbox(userId))
-    .filter((record) => record.userId === userId)
-    .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id));
+  try {
+    const adapter = getAdapter();
+    if (!adapter) return [];
+    return (await adapter.listOutbox(userId))
+      .filter((record) => record.userId === userId)
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id));
+  } catch {
+    return [];
+  }
 }
 
 export async function removePendingTransaction(userId: string, pendingId: string): Promise<void> {
   assertUserId(userId);
-  await requireAdapter().removeOutbox(userId, pendingId);
+  try {
+    await requireAdapter().removeOutbox(userId, pendingId);
+  } catch (error) {
+    throw unavailable(error);
+  }
 }
 
 export async function updatePendingTransaction(userId: string, pendingId: string, patch: Pick<PendingTransaction, "attempts" | "status" | "lastError">): Promise<void> {
   assertUserId(userId);
-  await requireAdapter().updateOutbox(userId, pendingId, patch);
+  try {
+    await requireAdapter().updateOutbox(userId, pendingId, patch);
+  } catch (error) {
+    throw unavailable(error);
+  }
 }
 
 export async function clearUserData(userId: string): Promise<void> {
   assertUserId(userId);
-  await requireAdapter().clearUser(userId);
+  try {
+    await requireAdapter().clearUser(userId);
+  } catch (error) {
+    throw unavailable(error);
+  }
 }
 
 export function setOfflineStorageAdapterForTests(adapter: OfflineStorageAdapter): void {

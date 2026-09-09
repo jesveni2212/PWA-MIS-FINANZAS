@@ -30,6 +30,7 @@ export type PersonalFinanceContextValue = {
 type PersonalFinanceProviderProps = {
   userId: string;
   initialLedger: PersonalLedger;
+  initialLedgerUpdatedAt: string | null;
   children: ReactNode;
 };
 
@@ -64,13 +65,25 @@ function mergePendingTransactions(baseLedger: PersonalLedger, pending: PendingTr
   }, baseLedger);
 }
 
-export function PersonalFinanceProvider({ userId, initialLedger, children }: PersonalFinanceProviderProps) {
-  const initialUpdatedAt = useState(() => new Date().toISOString())[0];
-  const baseLedgerRef = useRef(initialLedger);
+function newerThanServer(snapshot: MemorySnapshot, initialLedgerUpdatedAt: string | null): boolean {
+  return initialLedgerUpdatedAt === null || snapshot.updatedAt > initialLedgerUpdatedAt;
+}
+
+export function PersonalFinanceProvider(props: PersonalFinanceProviderProps) {
+  return <PersonalFinanceProviderForUser key={props.userId} {...props} />;
+}
+
+function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUpdatedAt, children }: PersonalFinanceProviderProps) {
+  const memorySnapshot = latestLedgerByUser?.get(userId) ?? null;
+  const initialSnapshot = memorySnapshot && newerThanServer(memorySnapshot, initialLedgerUpdatedAt)
+    ? memorySnapshot
+    : { ledger: initialLedger, updatedAt: initialLedgerUpdatedAt };
+  const baseLedgerRef = useRef(initialSnapshot.ledger);
   const pendingRef = useRef<PendingTransaction[]>([]);
-  const [ledger, setLedger] = useState(() => initialLedger);
-  const [freshness, setFreshness] = useState<PersonalFinanceContextValue["freshness"]>("server");
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(initialUpdatedAt);
+  const syncPromiseRef = useRef<Promise<void> | null>(null);
+  const [ledger, setLedger] = useState(() => initialSnapshot.ledger);
+  const [freshness, setFreshness] = useState<PersonalFinanceContextValue["freshness"]>(() => initialSnapshot === memorySnapshot ? "cached" : initialLedgerUpdatedAt === null ? "offline" : "server");
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(initialSnapshot.updatedAt);
   const [isSyncing, setIsSyncing] = useState(false);
   const [storageWarning, setStorageWarning] = useState(false);
 
@@ -107,39 +120,49 @@ export function PersonalFinanceProvider({ userId, initialLedger, children }: Per
     }
   }, [renderPending, showStorageWarning, userId]);
 
-  const synchronize = useCallback(async () => {
-    setIsSyncing(true);
-    try {
-      const result = await syncPendingTransactions(userId, {
-        list: async () => pendingRef.current,
-        send: (draft) => recordPersonalTransaction(draft, baseLedgerRef.current.accounts),
-        remove: async (operationUserId, pendingId) => {
+  const synchronize = useCallback((): Promise<void> => {
+    if (syncPromiseRef.current) return syncPromiseRef.current;
+
+    const sync = (async () => {
+      setIsSyncing(true);
+      try {
+        const result = await syncPendingTransactions(userId, {
+          list: async () => pendingRef.current,
+          send: (draft) => recordPersonalTransaction(draft, baseLedgerRef.current.accounts),
+          remove: async (operationUserId, pendingId) => {
+            try {
+              await removePendingTransaction(operationUserId, pendingId);
+            } catch (error) {
+              showStorageWarning(error);
+            }
+            setPending(pendingRef.current.filter((operation) => operation.id !== pendingId));
+          },
+          update: async (operationUserId, pendingId, patch) => {
+            try {
+              await updatePendingTransaction(operationUserId, pendingId, patch);
+            } catch (error) {
+              showStorageWarning(error);
+            }
+            setPending(pendingRef.current.map((operation) => operation.id === pendingId ? { ...operation, ...patch } : operation));
+          },
+        });
+        if (result.syncedCount > 0) {
           try {
-            await removePendingTransaction(operationUserId, pendingId);
-          } catch (error) {
-            showStorageWarning(error);
+            await refresh();
+          } catch {
+            setFreshness("offline");
           }
-          setPending(pendingRef.current.filter((operation) => operation.id !== pendingId));
-        },
-        update: async (operationUserId, pendingId, patch) => {
-          try {
-            await updatePendingTransaction(operationUserId, pendingId, patch);
-          } catch (error) {
-            showStorageWarning(error);
-          }
-          setPending(pendingRef.current.map((operation) => operation.id === pendingId ? { ...operation, ...patch } : operation));
-        },
-      });
-      if (result.syncedCount > 0) {
-        try {
-          await refresh();
-        } catch {
-          setFreshness("offline");
         }
+      } finally {
+        setIsSyncing(false);
       }
-    } finally {
-      setIsSyncing(false);
-    }
+    })();
+    syncPromiseRef.current = sync;
+    void sync.then(
+      () => { if (syncPromiseRef.current === sync) syncPromiseRef.current = null; },
+      () => { if (syncPromiseRef.current === sync) syncPromiseRef.current = null; },
+    );
+    return sync;
   }, [refresh, setPending, showStorageWarning, userId]);
 
   const queueTransaction = useCallback(async (draft: PersonalTransactionDraft & { clientOperationId: string }) => {
@@ -188,27 +211,25 @@ export function PersonalFinanceProvider({ userId, initialLedger, children }: Per
   useEffect(() => {
     let active = true;
     const hydrate = async () => {
-      try {
-        const [cache, storedPending] = await Promise.all([readLedgerCache(userId), listPendingTransactions(userId)]);
-        if (!active) return;
-        const mergedPending = [...pendingRef.current, ...storedPending.filter((stored) => !pendingRef.current.some((current) => current.id === stored.id))];
-        pendingRef.current = mergedPending;
-        if (cache && cache.updatedAt > initialUpdatedAt) {
-          baseLedgerRef.current = cache.ledger;
-          latestLedgerByUser?.set(userId, { ledger: cache.ledger, updatedAt: cache.updatedAt });
-          setFreshness("cached");
-          setLastUpdatedAt(cache.updatedAt);
-          renderPending(cache.ledger, mergedPending);
-        } else {
-          renderPending(baseLedgerRef.current, mergedPending);
+      const [cache, storedPending] = await Promise.all([readLedgerCache(userId), listPendingTransactions(userId)]);
+      if (!active) return;
+      const mergedPending = [...pendingRef.current, ...storedPending.filter((stored) => !pendingRef.current.some((current) => current.id === stored.id))];
+      pendingRef.current = mergedPending;
+      if (cache && newerThanServer(cache, initialLedgerUpdatedAt)) {
+        baseLedgerRef.current = cache.ledger;
+        latestLedgerByUser?.set(userId, { ledger: cache.ledger, updatedAt: cache.updatedAt });
+        setFreshness("cached");
+        setLastUpdatedAt(cache.updatedAt);
+        renderPending(cache.ledger, mergedPending);
+      } else {
+        renderPending(baseLedgerRef.current, mergedPending);
+        if (initialLedgerUpdatedAt !== null) {
           try {
-            await writeLedgerCache(userId, baseLedgerRef.current, initialUpdatedAt);
+            await writeLedgerCache(userId, baseLedgerRef.current, initialLedgerUpdatedAt);
           } catch (error) {
             showStorageWarning(error);
           }
         }
-      } catch (error) {
-        showStorageWarning(error);
       }
     };
     const onOnline = () => { void synchronize(); };
@@ -218,7 +239,13 @@ export function PersonalFinanceProvider({ userId, initialLedger, children }: Per
     };
 
     void hydrate().finally(() => {
-      if (active) void synchronize();
+      if (!active) return;
+      if (online()) {
+        void refresh().catch(() => {
+          if (active) setFreshness("offline");
+        });
+      }
+      void synchronize();
     });
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
@@ -229,7 +256,7 @@ export function PersonalFinanceProvider({ userId, initialLedger, children }: Per
       window.removeEventListener("offline", onOffline);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [initialUpdatedAt, renderPending, showStorageWarning, synchronize, userId]);
+  }, [initialLedgerUpdatedAt, refresh, renderPending, showStorageWarning, synchronize, userId]);
 
   const value = useMemo<PersonalFinanceContextValue>(() => ({
     ledger,

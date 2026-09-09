@@ -76,6 +76,7 @@ export async function syncPendingTransactions(userId: string, dependencies: Sync
           status: "pending",
           lastError,
         });
+        break;
       } else {
         await dependencies.update(userId, record.id, {
           attempts: record.attempts,

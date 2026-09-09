@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
+import { clearUserData } from "@/lib/offline/storage";
 
 export function ProfileForm() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -77,6 +78,13 @@ export function ProfileForm() {
 
   async function signOut() {
     setSaving(true);
+    if (userId) {
+      try {
+        await clearUserData(userId);
+      } catch {
+        // A storage failure must not trap the user in a signed-in session.
+      }
+    }
     await createClient().auth.signOut();
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign("/acceso");

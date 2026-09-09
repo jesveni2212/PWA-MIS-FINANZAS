@@ -1,13 +1,14 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PersonalFinanceProvider, usePersonalFinance } from "@/components/finance/personal-finance-provider";
 
-const { enqueueTransaction, listPendingTransactions, loadPersonalLedger, readLedgerCache, removePendingTransaction, updatePendingTransaction, writeLedgerCache } = vi.hoisted(() => ({
+const { enqueueTransaction, listPendingTransactions, loadPersonalLedger, readLedgerCache, recordPersonalTransaction, removePendingTransaction, updatePendingTransaction, writeLedgerCache } = vi.hoisted(() => ({
   enqueueTransaction: vi.fn(),
   listPendingTransactions: vi.fn().mockResolvedValue([]),
   loadPersonalLedger: vi.fn(),
   readLedgerCache: vi.fn().mockResolvedValue(null),
+  recordPersonalTransaction: vi.fn(),
   removePendingTransaction: vi.fn(),
   updatePendingTransaction: vi.fn(),
   writeLedgerCache: vi.fn(),
@@ -16,6 +17,7 @@ const { enqueueTransaction, listPendingTransactions, loadPersonalLedger, readLed
 vi.mock("@/lib/finance/personal-ledger", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/finance/personal-ledger")>(),
   loadPersonalLedger,
+  recordPersonalTransaction,
 }));
 vi.mock("@/lib/offline/storage", () => ({
   enqueueTransaction,
@@ -63,10 +65,34 @@ function OfflineTransactionWriter() {
   </>;
 }
 
+function LedgerAndPendingReader() {
+  const { ledger, pendingCount } = usePersonalFinance();
+  return <p>{ledger.accounts[0]?.name} / pendientes: {pendingCount}</p>;
+}
+
 describe("PersonalFinanceProvider", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    enqueueTransaction.mockReset();
+    listPendingTransactions.mockReset();
+    loadPersonalLedger.mockReset();
+    readLedgerCache.mockReset();
+    recordPersonalTransaction.mockReset();
+    removePendingTransaction.mockReset();
+    updatePendingTransaction.mockReset();
+    writeLedgerCache.mockReset();
+    listPendingTransactions.mockResolvedValue([]);
+    loadPersonalLedger.mockResolvedValue(initialLedger);
+    readLedgerCache.mockResolvedValue(null);
+    recordPersonalTransaction.mockResolvedValue("transaction-1");
+  });
+
+  afterEach(() => cleanup());
+
   it("renders the initial ledger synchronously without a loading-only state", () => {
     render(
-      <PersonalFinanceProvider initialLedger={initialLedger} userId="user-1">
+      <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-1">
         <LedgerReader />
       </PersonalFinanceProvider>,
     );
@@ -87,7 +113,7 @@ describe("PersonalFinanceProvider", () => {
     loadPersonalLedger.mockResolvedValue(refreshedLedger);
 
     const firstRender = render(
-      <PersonalFinanceProvider initialLedger={initialLedger} userId="user-refresh">
+      <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-refresh">
         <RefreshableLedgerReader />
       </PersonalFinanceProvider>,
     );
@@ -97,7 +123,7 @@ describe("PersonalFinanceProvider", () => {
     firstRender.unmount();
 
     render(
-      <PersonalFinanceProvider initialLedger={freshServerLedger} userId="user-refresh">
+      <PersonalFinanceProvider initialLedger={freshServerLedger} initialLedgerUpdatedAt="2999-09-09T00:00:00.000Z" userId="user-refresh">
         <LedgerReader />
       </PersonalFinanceProvider>,
     );
@@ -106,13 +132,14 @@ describe("PersonalFinanceProvider", () => {
   });
 
   it("hydrates a newer per-user cache after mount", async () => {
+    loadPersonalLedger.mockImplementation(() => new Promise(() => undefined));
     readLedgerCache.mockResolvedValueOnce({
       ledger: { ...initialLedger, accounts: [{ ...initialLedger.accounts[0]!, name: "CachÃ© local" }] },
       updatedAt: "2999-09-09T00:00:00.000Z",
     });
 
     render(
-      <PersonalFinanceProvider initialLedger={initialLedger} userId="user-cache">
+      <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-cache">
         <LedgerReader />
       </PersonalFinanceProvider>,
     );
@@ -134,7 +161,7 @@ describe("PersonalFinanceProvider", () => {
     vi.stubGlobal("crypto", { randomUUID: vi.fn().mockReturnValue("22222222-2222-4222-8222-222222222222") });
 
     render(
-      <PersonalFinanceProvider initialLedger={initialLedger} userId="user-offline">
+      <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-offline">
         <OfflineTransactionWriter />
       </PersonalFinanceProvider>,
     );
@@ -143,5 +170,84 @@ describe("PersonalFinanceProvider", () => {
     await waitFor(() => expect(screen.getByText("499900")).toBeInTheDocument());
     expect(screen.getByText("pendientes: 1")).toBeInTheDocument();
     expect(enqueueTransaction).toHaveBeenCalledWith("user-offline", expect.objectContaining({ clientOperationId: "22222222-2222-4222-8222-222222222222" }));
+  });
+
+  it("uses a newer in-memory snapshot but never replaces a newer server snapshot", async () => {
+    const memoryLedger = { ...initialLedger, accounts: [{ ...initialLedger.accounts[0]!, name: "Memoria nueva" }] };
+    loadPersonalLedger.mockResolvedValue(memoryLedger);
+    const first = render(
+      <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-memory">
+        <RefreshableLedgerReader />
+      </PersonalFinanceProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar" }));
+    await waitFor(() => expect(screen.getByText("Memoria nueva")).toBeInTheDocument());
+    first.unmount();
+
+    render(
+      <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt="2000-01-01T00:00:00.000Z" userId="user-memory">
+        <LedgerReader />
+      </PersonalFinanceProvider>,
+    );
+    expect(screen.getByText("Memoria nueva")).toBeInTheDocument();
+  });
+
+  it("resets visible ledger and pending state when the active user changes", async () => {
+    loadPersonalLedger.mockImplementation(() => new Promise(() => undefined));
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    listPendingTransactions.mockResolvedValueOnce([{
+      id: "pending-a", userId: "user-a", draft: { operationType: "expense", sourceAccountId: "account-1", destinationAccountId: null, amount: 1, occurredOn: "2026-09-09", clientOperationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, createdAt: "2026-09-09T00:00:00.000Z", attempts: 0, status: "pending", lastError: null,
+    }]);
+    const firstLedger = { ...initialLedger, accounts: [{ ...initialLedger.accounts[0]!, name: "Cuenta A" }] };
+    const secondLedger = { ...initialLedger, accounts: [{ ...initialLedger.accounts[0]!, name: "Cuenta B" }] };
+    const view = render(
+      <PersonalFinanceProvider initialLedger={firstLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-a">
+        <LedgerAndPendingReader />
+      </PersonalFinanceProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Cuenta A / pendientes: 1")).toBeInTheDocument());
+
+    view.rerender(
+      <PersonalFinanceProvider initialLedger={secondLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-b">
+        <LedgerAndPendingReader />
+      </PersonalFinanceProvider>,
+    );
+    expect(screen.getByText("Cuenta B / pendientes: 0")).toBeInTheDocument();
+  });
+
+  it("uses cached data after a server-load failure", async () => {
+    loadPersonalLedger.mockImplementation(() => new Promise(() => undefined));
+    readLedgerCache.mockResolvedValueOnce({
+      ledger: { ...initialLedger, accounts: [{ ...initialLedger.accounts[0]!, name: "CachÃ© tras error" }] },
+      updatedAt: "2026-09-09T00:00:00.000Z",
+    });
+
+    render(
+      <PersonalFinanceProvider initialLedger={{ accounts: [], transactions: [] }} initialLedgerUpdatedAt={null} userId="user-server-failure">
+        <LedgerReader />
+      </PersonalFinanceProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("CachÃ© tras error")).toBeInTheDocument());
+  });
+
+  it("shares one in-flight synchronization pass across repeated browser events", async () => {
+    let completeSend!: (value: string) => void;
+    recordPersonalTransaction.mockImplementation(() => new Promise<string>((resolve) => { completeSend = resolve; }));
+    listPendingTransactions.mockResolvedValueOnce([{
+      id: "pending-sync", userId: "user-sync", draft: { operationType: "expense", sourceAccountId: "account-1", destinationAccountId: null, amount: 1, occurredOn: "2026-09-09", clientOperationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }, createdAt: "2026-09-09T00:00:00.000Z", attempts: 0, status: "pending", lastError: null,
+    }]);
+
+    render(
+      <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-sync">
+        <LedgerAndPendingReader />
+      </PersonalFinanceProvider>,
+    );
+    await waitFor(() => expect(recordPersonalTransaction).toHaveBeenCalledTimes(1));
+    window.dispatchEvent(new Event("online"));
+    window.dispatchEvent(new Event("online"));
+    expect(recordPersonalTransaction).toHaveBeenCalledTimes(1);
+
+    completeSend("transaction-1");
+    await waitFor(() => expect(screen.getByText("Caja / pendientes: 0")).toBeInTheDocument());
   });
 });

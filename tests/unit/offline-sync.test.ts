@@ -28,15 +28,28 @@ describe("syncPendingTransactions", () => {
     expect(remove.mock.calls).toEqual([["user-1", "first"], ["user-1", "later"]]);
   });
 
-  it("retains retryable errors and marks permanent errors for review", async () => {
+  it("retains a retryable error and stops before later operations", async () => {
     const retry = pending("retry", "2026-09-09T00:00:00.000Z");
     const review = pending("review", "2026-09-09T00:00:01.000Z");
     const update = vi.fn();
     const send = vi.fn().mockRejectedValueOnce(new TypeError("network down")).mockRejectedValueOnce(Object.assign(new Error("invalid payload"), { status: 400 }));
 
-    await expect(syncPendingTransactions("user-1", { list: vi.fn().mockResolvedValue([review, retry]), send, remove: vi.fn(), update })).resolves.toEqual({ syncedCount: 0, pendingCount: 1, reviewCount: 1 });
+    await expect(syncPendingTransactions("user-1", { list: vi.fn().mockResolvedValue([review, retry]), send, remove: vi.fn(), update })).resolves.toEqual({ syncedCount: 0, pendingCount: 2, reviewCount: 0 });
     expect(update).toHaveBeenNthCalledWith(1, "user-1", "retry", { attempts: 1, status: "pending", lastError: "network down" });
-    expect(update).toHaveBeenNthCalledWith(2, "user-1", "review", { attempts: 0, status: "review", lastError: "invalid payload" });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks a non-retryable error for review when it is first in order", async () => {
+    const update = vi.fn();
+    const record = pending("review", "2026-09-09T00:00:00.000Z");
+
+    await expect(syncPendingTransactions("user-1", {
+      list: vi.fn().mockResolvedValue([record]),
+      send: vi.fn().mockRejectedValue(Object.assign(new Error("invalid payload"), { status: 400 })),
+      remove: vi.fn(),
+      update,
+    })).resolves.toEqual({ syncedCount: 0, pendingCount: 0, reviewCount: 1 });
+    expect(update).toHaveBeenCalledWith("user-1", "review", { attempts: 0, status: "review", lastError: "invalid payload" });
   });
 
   it("does not send when the browser reports offline", async () => {

@@ -5,15 +5,23 @@ import { AppShell } from "@/components/app-shell";
 import { PersonalFinanceProvider } from "@/components/finance/personal-finance-provider";
 import { getServerSessionData } from "@/lib/auth/server-session";
 import { loadPersonalLedgerServer } from "@/lib/finance/personal-ledger-server";
+import type { PersonalLedger } from "@/lib/finance/types";
 
 export default async function CuentasPage() {
   const session = await getServerSessionData();
   if (!session) redirect("/acceso");
 
-  const initialLedger = await loadPersonalLedgerServer(50);
+  let initialLedger: PersonalLedger = { accounts: [], transactions: [] };
+  let initialLedgerUpdatedAt: string | null = null;
+  try {
+    initialLedger = await loadPersonalLedgerServer(50);
+    initialLedgerUpdatedAt = new Date().toISOString();
+  } catch {
+    // The client provider may safely recover from its per-user IndexedDB cache.
+  }
 
   return (
-    <PersonalFinanceProvider initialLedger={initialLedger} userId={session.userId}>
+    <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt={initialLedgerUpdatedAt} userId={session.userId}>
       <AppShell displayName={session.displayName}>
         <section>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-signal">Libro personal</p>

@@ -1,20 +1,23 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProfileForm } from "@/components/profile/profile-form";
+import { clearUserData } from "@/lib/offline/storage";
 import { createClient } from "@/lib/supabase/client";
 
 vi.mock("@/lib/supabase/client", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/offline/storage", () => ({ clearUserData: vi.fn() }));
 const mockedCreateClient = vi.mocked(createClient);
 
 function mockClient({ user = { id: "user-1", email: "ana@example.com" }, profile = { display_name: "Ana" } }: { user?: { id: string; email: string } | null; profile?: { display_name: string | null } | null } = {}) {
   const maybeSingle = vi.fn().mockResolvedValue({ data: profile, error: null });
   const updateEq = vi.fn().mockResolvedValue({ error: null });
   const update = vi.fn(() => ({ eq: updateEq }));
+  const signOut = vi.fn().mockResolvedValue({ error: null });
   mockedCreateClient.mockReturnValue({
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user }, error: null }) },
+    auth: { getUser: vi.fn().mockResolvedValue({ data: { user }, error: null }), signOut },
     from: vi.fn(() => ({ select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle })) })), update })),
   } as never);
-  return { update, updateEq };
+  return { update, updateEq, signOut };
 }
 
 afterEach(() => { cleanup(); mockedCreateClient.mockReset(); });
@@ -50,5 +53,16 @@ describe("ProfileForm", () => {
     mockClient({ user: null });
     render(<ProfileForm />);
     expect(await screen.findByText("Tu sesión no está disponible. Volvé a iniciar sesión.")).toBeInTheDocument();
+  });
+
+  it("clears the active user's offline data before signing out without blocking logout", async () => {
+    const { signOut } = mockClient();
+    vi.mocked(clearUserData).mockRejectedValueOnce(new Error("storage unavailable"));
+    render(<ProfileForm />);
+    await screen.findByDisplayValue("Ana");
+    fireEvent.click(screen.getByRole("button", { name: /Cerrar sesi.n/ }));
+
+    await waitFor(() => expect(clearUserData).toHaveBeenCalledWith("user-1"));
+    expect(signOut).toHaveBeenCalledTimes(1);
   });
 });
