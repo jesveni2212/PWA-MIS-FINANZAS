@@ -104,9 +104,19 @@ export async function recordPersonalTransaction(draft: PersonalTransactionDraft,
       p_client_operation_id: draft.clientOperationId ?? crypto.randomUUID(),
     });
 
-    if (error || typeof data !== "string") throw new Error(saveError);
+    if (error) {
+      const requestError = Object.assign(new Error(saveError), {
+        status: typeof error === "object" && error !== null && "status" in error && typeof error.status === "number"
+          ? error.status
+          : undefined,
+      });
+      throw requestError;
+    }
+    if (typeof data !== "string") throw new Error(saveError);
     return data;
-  } catch {
+  } catch (error) {
+    if (error instanceof TypeError || (error instanceof Error && error.name === "AbortError")) throw error;
+    if (typeof error === "object" && error !== null && "status" in error && typeof error.status === "number") throw error;
     throw new Error(saveError);
   }
 }

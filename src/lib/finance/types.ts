@@ -38,6 +38,8 @@ export type PersonalTransaction = {
   note: string | null;
   merchant: string | null;
   items: PurchaseItem[];
+  syncStatus?: "synced" | "pending" | "review";
+  clientOperationId?: string;
 };
 
 export type PersonalLedger = {
