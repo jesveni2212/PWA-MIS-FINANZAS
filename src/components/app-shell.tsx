@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Icon } from "@/components/ui/icon";
+import { getGreetingLabel } from "@/lib/auth/greeting";
 import { site } from "@/lib/site";
+import { createClient } from "@/lib/supabase/client";
 
 type AppShellProps = { children: ReactNode };
 
@@ -37,6 +39,30 @@ export function useBalancesHidden() {
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const [displayName, setDisplayName] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDisplayName() {
+      const client = createClient();
+      const { data: authData, error: authError } = await client.auth.getUser();
+      if (authError || !authData.user) return;
+
+      const { data } = await client
+        .from("profiles")
+        .select("display_name")
+        .eq("id", authData.user.id)
+        .maybeSingle();
+
+      if (active) setDisplayName(data?.display_name ?? null);
+    }
+
+    void loadDisplayName();
+    return () => { active = false; };
+  }, []);
+
+  const greeting = getGreetingLabel(displayName);
   const balancesHidden = useBalancesHidden();
 
   function toggleBalanceVisibility() {
@@ -50,7 +76,10 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="min-h-dvh bg-background text-foreground lg:pl-64">
       <header className="border-b border-border/70 bg-background/85 px-5 py-4 backdrop-blur lg:hidden">
-        <p className="font-serif text-xl font-semibold tracking-tight">{site.name}</p>
+        <div className="flex items-center justify-between gap-4">
+          <p className="font-serif text-xl font-semibold tracking-tight">{site.name}</p>
+          <p className="text-right text-sm font-semibold text-text">{greeting}</p>
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-6xl px-5 py-8 pb-32 sm:px-8 lg:px-12 lg:py-12 lg:pb-12">
@@ -81,9 +110,14 @@ export function AppShell({ children }: AppShellProps) {
             ))}
           </ul>
 
+          <div className="hidden border-t border-border/80 px-3 pt-5 lg:mt-auto lg:block">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">Tu espacio</p>
+            <p className="mt-1 text-sm font-semibold text-text">{greeting}</p>
+          </div>
+
           <button
             aria-pressed={balancesHidden}
-            className="absolute -top-12 right-2 grid size-10 place-items-center rounded-full border border-line bg-panel-raised text-text shadow-lg shadow-black/30 transition-colors hover:border-signal hover:text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal lg:static lg:mt-auto lg:flex lg:h-auto lg:w-full lg:items-center lg:justify-center lg:gap-3 lg:rounded-xl lg:px-3 lg:py-3 lg:text-sm lg:font-semibold"
+            className="absolute -top-12 right-2 grid size-10 place-items-center rounded-full border border-line bg-panel-raised text-text shadow-lg shadow-black/30 transition-colors hover:border-signal hover:text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal lg:static lg:mt-3 lg:flex lg:h-auto lg:w-full lg:items-center lg:justify-center lg:gap-3 lg:rounded-xl lg:px-3 lg:py-3 lg:text-sm lg:font-semibold"
             onClick={toggleBalanceVisibility}
             type="button"
           >
