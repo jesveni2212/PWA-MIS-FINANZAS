@@ -99,3 +99,91 @@ The complete validation suite was intentionally not run, per Task 3 scope.
 
 - The existing provider prop contract carries `initialLedger` but no server snapshot timestamp. The implementation uses the client mount time as a conservative freshness boundary, so IndexedDB replaces the server snapshot only when its stored `updatedAt` is demonstrably newer. A future server-provided snapshot timestamp would make this comparison exact.
 - A pre-existing edit to `docs/superpowers/plans/2026-09-09-hybrid-pwa-performance.md` was intentionally preserved and excluded from the implementation commit.
+
+## Fix wave: offline safety review findings
+
+**Status:** complete.
+
+**Implementation commit:** `899c002 fix: harden offline finance synchronization`.
+
+### Changed files
+
+- `src/app/page.tsx`
+- `src/app/cuentas/page.tsx`
+- `src/app/movimientos/page.tsx`
+- `src/components/finance/personal-finance-provider.tsx`
+- `src/components/profile/profile-form.tsx`
+- `src/lib/offline/storage.ts`
+- `src/lib/offline/sync.ts`
+- `tests/unit/home-page.test.tsx`
+- `tests/unit/offline-storage.test.ts`
+- `tests/unit/offline-sync.test.ts`
+- `tests/unit/personal-finance-provider.test.tsx`
+- `tests/unit/profile-form.test.tsx`
+
+### Findings addressed
+
+- Server pages now produce and pass `initialLedgerUpdatedAt`; the provider compares both IndexedDB and per-user in-memory snapshots against that timestamp. A `null` timestamp marks a server ledger failure, allowing only that authenticated user's cached ledger to hydrate.
+- The provider hydrates cache/outbox, triggers an online background revalidation even with no pending writes, and remounts an inner stateful provider keyed by `userId` to prevent a preserved instance from exposing another user's ledger or pending count.
+- Retryable synchronization failures now stop the ordered pass. A per-provider in-flight promise coalesces mount, online, visibility, and post-write sync triggers.
+- Every public IndexedDB read now returns `null`/`[]` on browser storage failures; public writes normalize open/request/transaction/quota/security failures to `OfflineStorageUnavailableError`.
+- Logout best-effort clears only the active user's local ledger/outbox before `auth.signOut()`; cleanup failure cannot block sign-out.
+
+### Failing-before evidence
+
+```powershell
+.\node_modules\.bin\vitest.cmd run tests/unit/offline-sync.test.ts tests/unit/offline-storage.test.ts tests/unit/personal-finance-provider.test.tsx tests/unit/profile-form.test.tsx
+```
+
+Result before the fixes: 5 failures across four files. The failures demonstrated raw `SecurityError` leakage from storage reads, sync continuing after a retryable failure, a newer memory snapshot being ignored, stale provider state after a user switch, and missing logout cleanup coverage.
+
+During the server-timestamp propagation, the first typecheck correctly failed until the empty fallback snapshots were typed as `PersonalLedger`:
+
+```powershell
+corepack pnpm typecheck
+```
+
+Output before that correction:
+
+```text
+TS2322: Type 'PersonalLedger' is not assignable to type '{ accounts: never[]; transactions: never[]; }'.
+```
+
+### Focused validation
+
+The pnpm wrapper remains unable to expose Vitest:
+
+```powershell
+corepack pnpm vitest run tests/unit/local-ledger.test.ts tests/unit/offline-sync.test.ts tests/unit/offline-storage.test.ts tests/unit/personal-finance-provider.test.tsx tests/unit/profile-form.test.tsx tests/unit/home-page.test.tsx
+```
+
+Output:
+
+```text
+"vitest" no se reconoce como un comando interno o externo,
+programa o archivo por lotes ejecutable.
+```
+
+Used the direct local fallback:
+
+```powershell
+.\node_modules\.bin\vitest.cmd run tests/unit/local-ledger.test.ts tests/unit/offline-sync.test.ts tests/unit/offline-storage.test.ts tests/unit/personal-finance-provider.test.tsx tests/unit/profile-form.test.tsx tests/unit/home-page.test.tsx
+```
+
+Output:
+
+```text
+Test Files  6 passed (6)
+     Tests  28 passed (28)
+```
+
+```powershell
+corepack pnpm typecheck
+git diff --check
+```
+
+Result: both passed (exit code 0). Vitest retained the pre-existing Vite CommonJS/ESM configuration warning and JSDOM logged `Not implemented: navigation to another Document` after the successful logout redirect; neither affected assertions or command status.
+
+### Pre-existing auth-storage caveat
+
+`src/lib/supabase/client.ts` continues to call `createBrowserClient` without a custom Supabase auth-storage adapter. Supabase browser auth may therefore use its default browser storage for session persistence. This predates Task 3 and this fix wave does not alter login persistence. The Task 3 offline modules do not write credentials, access tokens, private HTML, or financial data to `localStorage`; financial cache/outbox data remains scoped IndexedDB only.
