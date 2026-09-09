@@ -12,6 +12,7 @@ describe("auth path contracts", () => {
   it("exposes the expected private and auth path lists", () => {
     expect(privatePaths).toEqual([
       "/",
+      "/cuentas",
       "/movimientos",
       "/grupos",
       "/perfil",
@@ -39,6 +40,7 @@ describe("auth path contracts", () => {
 
   it("marks only protected routes as private", () => {
     expect(isPrivatePath("/")).toBe(true);
+    expect(isPrivatePath("/cuentas")).toBe(true);
     expect(isPrivatePath("/movimientos")).toBe(true);
     expect(isPrivatePath("/grupos")).toBe(true);
     expect(isPrivatePath("/perfil")).toBe(true);

@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { Icon } from "@/components/ui/icon";
 import { getGreetingLabel } from "@/lib/auth/greeting";
 import { isNavigationItemActive } from "@/lib/navigation";
 import { site } from "@/lib/site";
-import { createClient } from "@/lib/supabase/client";
 
-type AppShellProps = { children: ReactNode };
+type AppShellProps = { children: ReactNode; displayName: string | null };
 
 const balancePreferenceKey = "mis-finanzas:balances-hidden";
 const balancePreferenceEvent = "mis-finanzas:balances-hidden-change";
@@ -40,31 +39,7 @@ export function useBalancesHidden() {
   );
 }
 
-export function AppShell({ children }: AppShellProps) {
-  const [displayName, setDisplayName] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadDisplayName() {
-      const client = createClient();
-      const { data: authData, error: authError } = await client.auth.getUser();
-      if (authError || !authData.user) return;
-
-      const { data, error: profileError } = await client
-        .from("profiles")
-        .select("display_name")
-        .eq("id", authData.user.id)
-        .maybeSingle();
-
-      if (profileError) return;
-      if (active) setDisplayName(data?.display_name ?? null);
-    }
-
-    void loadDisplayName();
-    return () => { active = false; };
-  }, []);
-
+export function AppShell({ children, displayName }: AppShellProps) {
   const greeting = getGreetingLabel(displayName);
   const balancesHidden = useBalancesHidden();
   const pathname = usePathname();

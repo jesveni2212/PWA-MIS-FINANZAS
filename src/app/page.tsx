@@ -2,17 +2,22 @@ import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/app-shell";
 import { PersonalDashboard } from "@/components/dashboard/personal-dashboard";
-import { createClient } from "@/lib/supabase/server";
+import { PersonalFinanceProvider } from "@/components/finance/personal-finance-provider";
+import { getServerSessionData } from "@/lib/auth/server-session";
+import { loadPersonalLedgerServer } from "@/lib/finance/personal-ledger-server";
 
 export default async function HomePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const session = await getServerSessionData();
 
-  if (!user) {
+  if (!session) {
     redirect("/acceso");
   }
 
-  return <AppShell><PersonalDashboard /></AppShell>;
+  const initialLedger = await loadPersonalLedgerServer(50);
+
+  return (
+    <PersonalFinanceProvider initialLedger={initialLedger} userId={session.userId}>
+      <AppShell displayName={session.displayName}><PersonalDashboard /></AppShell>
+    </PersonalFinanceProvider>
+  );
 }

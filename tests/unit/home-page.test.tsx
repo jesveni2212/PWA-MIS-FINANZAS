@@ -1,28 +1,27 @@
-import { isValidElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createClient, getUser, redirect } = vi.hoisted(() => ({
-  createClient: vi.fn(),
-  getUser: vi.fn(),
+const { getServerSessionData, loadPersonalLedgerServer, redirect } = vi.hoisted(() => ({
+  getServerSessionData: vi.fn(),
+  loadPersonalLedgerServer: vi.fn(),
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
   }),
 }));
 
-vi.mock("@/lib/supabase/server", () => ({ createClient }));
+vi.mock("@/lib/auth/server-session", () => ({ getServerSessionData }));
+vi.mock("@/lib/finance/personal-ledger-server", () => ({ loadPersonalLedgerServer }));
 vi.mock("next/navigation", () => ({ redirect }));
 
 describe("HomePage", () => {
   beforeEach(() => {
-    createClient.mockReset();
-    getUser.mockReset();
+    getServerSessionData.mockReset();
+    loadPersonalLedgerServer.mockReset();
     redirect.mockClear();
-    createClient.mockResolvedValue({ auth: { getUser } });
     vi.resetModules();
   });
 
   it("redirects visitors without a session to /acceso", async () => {
-    getUser.mockResolvedValue({ data: { user: null } });
+    getServerSessionData.mockResolvedValue(null);
 
     const { default: HomePage } = await import("@/app/page");
 
@@ -30,13 +29,17 @@ describe("HomePage", () => {
     expect(redirect).toHaveBeenCalledWith("/acceso");
   });
 
-  it("renders an element for authenticated users", async () => {
-    getUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+  it("renders the provider composition for authenticated users", async () => {
+    const initialLedger = { accounts: [], transactions: [] };
+    getServerSessionData.mockResolvedValue({ userId: "user-1", displayName: "Ana" });
+    loadPersonalLedgerServer.mockResolvedValue(initialLedger);
 
     const { default: HomePage } = await import("@/app/page");
     const element = await (async () => HomePage())();
 
     expect(redirect).not.toHaveBeenCalled();
-    expect(isValidElement(element)).toBe(true);
+    expect(element.props.userId).toBe("user-1");
+    expect(element.props.initialLedger).toBe(initialLedger);
+    expect(loadPersonalLedgerServer).toHaveBeenCalledWith(50);
   });
 });

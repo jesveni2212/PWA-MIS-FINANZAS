@@ -2,6 +2,7 @@ export const registrationConfirmationPath = "/registro-confirmado" as const;
 
 export const privatePaths = [
   "/",
+  "/cuentas",
   "/movimientos",
   "/grupos",
   "/perfil",
