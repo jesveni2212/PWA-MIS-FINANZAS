@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useMemo } from "react";
+import { MoneyInput } from "@/components/ui/money-input";
 import { PurchaseItemDraft } from "@/lib/finance/types";
 
 type PurchaseItemEditorProps = {
@@ -76,13 +77,14 @@ export function PurchaseItemEditor({ items, onChange, amount }: PurchaseItemEdit
                 </label>
                 <label className="grid gap-2 text-sm font-semibold" htmlFor={`purchase-item-unit-price-${itemNumber}`}>
                   Precio unitario del ítem {itemNumber}
-                  <input
+                  <MoneyInput
                     className="rounded-xl border border-border bg-background px-4 py-3"
                     id={`purchase-item-unit-price-${itemNumber}`}
                     min="0"
-                    onChange={(event) => updateItem(index, "unitPrice", event)}
+                    onChange={(value) => updateItems(items.map((currentItem, itemIndex) => (
+                      itemIndex === index ? { ...currentItem, unitPrice: value } : currentItem
+                    )))}
                     step="any"
-                    type="number"
                     value={item.unitPrice}
                   />
                 </label>

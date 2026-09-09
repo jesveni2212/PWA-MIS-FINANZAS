@@ -4,6 +4,9 @@ import { AppShell } from "@/components/app-shell";
 import { MoneyValue } from "@/components/ui/money-value";
 import { createClient } from "@/lib/supabase/client";
 
+const mockedUsePathname = vi.hoisted(() => vi.fn(() => "/"));
+
+vi.mock("next/navigation", () => ({ usePathname: mockedUsePathname }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: vi.fn() }));
 
 const mockedCreateClient = vi.mocked(createClient);
@@ -21,7 +24,7 @@ function mockProfile(displayName: string | null, profileError: object | null = n
   return { eq, from, maybeSingle, select };
 }
 
-beforeEach(() => mockProfile("Ana"));
+beforeEach(() => { mockedUsePathname.mockReturnValue("/"); mockProfile("Ana"); });
 afterEach(() => { cleanup(); mockedCreateClient.mockReset(); });
 
 describe("AppShell greeting", () => {
@@ -110,6 +113,16 @@ describe("AppShell", () => {
 
     expect(screen.getByRole("button", { name: "Mostrar saldos" })).toHaveAttribute("aria-pressed", "true");
     expect(window.localStorage.getItem("mis-finanzas:balances-hidden")).toBe("true");
+  });
+
+  it("marks the current main route in the navigation", () => {
+    mockedUsePathname.mockReturnValue("/movimientos");
+    render(<AppShell><p>Contenido</p></AppShell>);
+
+    const currentLink = screen.getByRole("link", { name: "Movimientos" });
+    expect(currentLink).toHaveAttribute("aria-current", "page");
+    expect(currentLink).toHaveClass("border-signal/40", "bg-brand-soft", "text-signal");
+    expect(screen.getByRole("link", { name: "Inicio" })).not.toHaveAttribute("aria-current");
   });
 });
 

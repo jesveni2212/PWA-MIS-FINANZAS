@@ -29,11 +29,11 @@ describe("OperationForm", () => {
     vi.mocked(recordPersonalTransaction).mockResolvedValue("transaction-1");
     render(<OperationForm accounts={accounts} initialOperationType="card_purchase" />);
     fireEvent.change(screen.getByLabelText("Tarjeta de crédito"), { target: { value: "credit-1" } });
-    fireEvent.change(screen.getByLabelText("Importe"), { target: { value: "150000" } });
+    fireEvent.change(screen.getByLabelText("Importe"), { target: { value: "150000,25" } });
     fireEvent.change(screen.getByLabelText("Categoría"), { target: { value: "  Comida " } });
     fireEvent.submit(screen.getByRole("button", { name: "Guardar operación" }).closest("form")!);
     await waitFor(() => expect(recordPersonalTransaction).toHaveBeenCalledTimes(1));
-    expect(recordPersonalTransaction).toHaveBeenCalledWith(expect.objectContaining({ operationType: "card_purchase", amount: 150000, category: "Comida" }), accounts);
+    expect(recordPersonalTransaction).toHaveBeenCalledWith(expect.objectContaining({ operationType: "card_purchase", amount: 150000.25, category: "Comida" }), accounts);
   });
 
   it("keeps the draft after an RPC error", async () => {
@@ -43,7 +43,7 @@ describe("OperationForm", () => {
     fireEvent.change(screen.getByLabelText("Categoría"), { target: { value: "Comida" } });
     fireEvent.submit(screen.getByRole("button", { name: "Guardar operación" }).closest("form")!);
     expect(await screen.findByText(/no pudimos guardar/i)).toBeInTheDocument();
-    expect(screen.getByLabelText("Importe")).toHaveValue(50000);
+    expect(screen.getByLabelText("Importe")).toHaveValue("50.000");
   });
 
   it("offers only valid account kinds and all operation modes", () => {

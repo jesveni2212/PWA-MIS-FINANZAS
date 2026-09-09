@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Icon } from "@/components/ui/icon";
 import { getGreetingLabel } from "@/lib/auth/greeting";
+import { isNavigationItemActive } from "@/lib/navigation";
 import { site } from "@/lib/site";
 import { createClient } from "@/lib/supabase/client";
 
@@ -65,6 +67,7 @@ export function AppShell({ children }: AppShellProps) {
 
   const greeting = getGreetingLabel(displayName);
   const balancesHidden = useBalancesHidden();
+  const pathname = usePathname();
 
   function toggleBalanceVisibility() {
     const nextHidden = !balancesHidden;
@@ -98,17 +101,21 @@ export function AppShell({ children }: AppShellProps) {
           </div>
 
           <ul className="grid grid-cols-5 lg:mt-7 lg:block lg:space-y-1">
-            {site.navigation.map((item) => (
-              <li key={item.href}>
-                <Link
-                  className="group flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold tracking-[0.02em] text-muted transition-colors hover:bg-panel-raised hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal lg:flex-row lg:gap-3 lg:px-3 lg:py-3 lg:text-sm"
-                  href={item.href}
-                >
-                  <Icon className="size-[18px] transition-transform group-hover:-translate-y-0.5 lg:size-5" name={item.icon} />
-                  <span>{item.label}</span>
-                </Link>
-              </li>
-            ))}
+            {site.navigation.map((item) => {
+              const isActive = isNavigationItemActive(pathname, item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    aria-current={isActive ? "page" : undefined}
+                    className={`group flex flex-col items-center gap-1 rounded-xl border px-1 py-2 text-[10px] font-semibold tracking-[0.02em] transition-colors hover:bg-panel-raised hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal lg:flex-row lg:gap-3 lg:px-3 lg:py-3 lg:text-sm ${isActive ? "border-signal/40 bg-brand-soft text-signal" : "border-transparent text-muted"}`}
+                    href={item.href}
+                  >
+                    <Icon className="size-[18px] transition-transform group-hover:-translate-y-0.5 lg:size-5" name={item.icon} />
+                    <span>{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
 
           <div className="hidden min-w-0 border-t border-border/80 px-3 pt-5 lg:mt-auto lg:block">

@@ -3,6 +3,7 @@
 import { type FormEvent, useState } from "react";
 import { PARAGUAYAN_INSTITUTIONS } from "@/lib/finance/institutions";
 import type { AccountType } from "@/lib/finance/types";
+import { MoneyInput } from "@/components/ui/money-input";
 import { createClient } from "@/lib/supabase/client";
 
 type AccountFormProps = { onCreated?: () => void | Promise<void> };
@@ -74,7 +75,7 @@ export function AccountForm({ onCreated }: AccountFormProps) {
       <label className="grid gap-2 text-sm font-semibold" htmlFor="account-institution">Entidad<select className="rounded-xl border border-border bg-background px-4 py-3" id="account-institution" onChange={(event) => setInstitution(event.target.value)} value={institution}>{PARAGUAYAN_INSTITUTIONS.map((item) => <option key={item} value={item}>{item}</option>)}<option value="Otro">Otro</option></select></label>
       {institution === "Otro" ? <label className="grid gap-2 text-sm font-semibold sm:col-span-2" htmlFor="account-other-institution">Nombre de otra entidad<input className="rounded-xl border border-border bg-background px-4 py-3" id="account-other-institution" onChange={(event) => setOtherInstitution(event.target.value)} placeholder="Ej.: Cooperativa local" required value={otherInstitution} /></label> : null}
       <label className="grid gap-2 text-sm font-semibold" htmlFor="account-currency">Moneda<select className="rounded-xl border border-border bg-background px-4 py-3" id="account-currency" onChange={(event) => setCurrency(event.target.value as "PYG" | "USD")} value={currency}><option value="PYG">Guaraníes (PYG)</option><option value="USD">Dólares (USD)</option></select></label>
-      <label className="grid gap-2 text-sm font-semibold" htmlFor="account-opening-value">{isCreditCard ? "Deuda inicial" : "Saldo inicial"}<input className="rounded-xl border border-border bg-background px-4 py-3" id="account-opening-value" inputMode="decimal" min="0" onChange={(event) => setOpeningValue(event.target.value)} step="0.01" type="number" value={openingValue} /></label>
+      <label className="grid gap-2 text-sm font-semibold" htmlFor="account-opening-value">{isCreditCard ? "Deuda inicial" : "Saldo inicial"}<MoneyInput className="rounded-xl border border-border bg-background px-4 py-3" id="account-opening-value" min="0" onChange={setOpeningValue} step="0.01" value={openingValue} /></label>
     </div>
     {message ? <p aria-live="polite" className={message === "Cuenta creada." ? "text-signal" : "text-danger"}>{message}</p> : null}
     <button className="w-fit rounded-xl bg-brand px-5 py-3 font-semibold text-brand-foreground disabled:cursor-not-allowed disabled:opacity-70" disabled={saving} type="submit">{saving ? "Guardando…" : "Crear cuenta"}</button>

@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { PurchaseItemEditor } from "@/components/movements/purchase-item-editor";
+import { MoneyInput } from "@/components/ui/money-input";
 import { recordPersonalTransaction } from "@/lib/finance/personal-ledger";
 import type { OperationType, PersonalAccount, PersonalTransactionDraft, PurchaseItemDraft } from "@/lib/finance/types";
 
@@ -44,7 +45,7 @@ export function OperationForm({ accounts, initialOperationType, onCreated }: Pro
     {operationType === "transfer" && select(destinationLabel, destination, setDestination, available)}
     {operationType === "card_purchase" && select("Tarjeta de crédito", source, setSource, cards)}
     {operationType === "card_payment" && select(destinationLabel, destination, setDestination, cards)}
-    <label className="grid gap-2 text-sm font-semibold" htmlFor="operation-amount">Importe<input className="rounded-xl border border-border bg-surface px-4 py-3" id="operation-amount" type="number" inputMode="decimal" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
+    <label className="grid gap-2 text-sm font-semibold" htmlFor="operation-amount">Importe<MoneyInput className="rounded-xl border border-border bg-surface px-4 py-3" id="operation-amount" min="0.01" onChange={setAmount} step="0.01" value={amount} /></label>
     {categoryNeeded && <label className="grid gap-2 text-sm font-semibold" htmlFor="operation-category">Categoría<input className="rounded-xl border border-border bg-surface px-4 py-3" id="operation-category" value={category} onChange={(event) => setCategory(event.target.value)} /></label>}
     <label className="grid gap-2 text-sm font-semibold" htmlFor="operation-date">Fecha<input className="rounded-xl border border-border bg-surface px-4 py-3" id="operation-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
     <label className="grid gap-2 text-sm font-semibold" htmlFor="operation-note">Nota <span className="font-normal text-muted">(opcional)</span><textarea className="min-h-24 rounded-xl border border-border bg-surface px-4 py-3" id="operation-note" value={note} onChange={(event) => setNote(event.target.value)} /></label>

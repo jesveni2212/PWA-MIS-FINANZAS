@@ -34,12 +34,14 @@ describe("AccountForm", () => {
 
     render(<AccountForm />);
     fireEvent.change(screen.getByLabelText("Nombre"), { target: { value: " Efectivo " } });
+    fireEvent.change(screen.getByLabelText("Saldo inicial"), { target: { value: "500000" } });
+    expect(screen.getByLabelText("Saldo inicial")).toHaveValue("500.000");
     fireEvent.submit(screen.getByRole("button", { name: "Crear cuenta" }).closest("form")!);
 
     expect(await screen.findByText("Cuenta creada.")).toBeInTheDocument();
     expect(eq).toHaveBeenCalledWith("kind", "personal");
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({
-      space_id: "personal-1", name: "Efectivo", account_type: "cash", institution: "Ueno", initial_balance: 0, opening_debt: 0,
+      space_id: "personal-1", name: "Efectivo", account_type: "cash", institution: "Ueno", initial_balance: 500000, opening_debt: 0,
     }));
   });
 });

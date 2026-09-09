@@ -39,6 +39,7 @@ describe("PurchaseItemEditor", () => {
     fireEvent.change(screen.getByLabelText("Precio unitario del ítem 1"), { target: { value: "8500" } });
 
     expect(screen.getByText("Total de ítems: ₲ 17.000")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Precio unitario/)).toHaveValue("8.500");
     expect(screen.getByText(/no coincide/i)).toBeInTheDocument();
     expect(onChange).toHaveBeenLastCalledWith([{ description: "Leche", quantity: "2", unitPrice: "8500" }]);
   });
