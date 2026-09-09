@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { isProviderEnabled, isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -31,5 +33,16 @@ describe("Supabase public configuration", () => {
 
     expect(isProviderEnabled("google", configured)).toBe(true);
     expect(isProviderEnabled("apple", configured)).toBe(false);
+  });
+
+  it("keeps browser-facing Supabase variables statically analyzable", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/lib/supabase/config.ts"),
+      "utf8",
+    );
+
+    expect(source).toContain("process.env.NEXT_PUBLIC_SUPABASE_URL");
+    expect(source).toContain("process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
+    expect(source).not.toContain("environment: PublicEnvironment = process.env");
   });
 });
