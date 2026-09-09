@@ -34,23 +34,23 @@
 - Consumes: `src/lib/supabase/config.ts` source text and the existing `isSupabaseConfigured`/`isProviderEnabled` tests.
 - Produces: A failing regression that requires direct static references to both Supabase public variables and rejects the old indirect default.
 
-- [ ] **Step 1: Add the file-reading imports.**
+- [x] **Step 1: Add the file-reading imports.**
 
 Add these imports before the existing Vitest import in `tests/unit/supabase-config.test.ts`:
 
 ```ts
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 ```
 
-- [ ] **Step 2: Add the static-reference regression test.**
+- [x] **Step 2: Add the static-reference regression test.**
 
 Append this test inside the existing `describe("Supabase public configuration", () => { ... })` block:
 
 ```ts
   it("keeps browser-facing Supabase variables statically analyzable", () => {
     const source = readFileSync(
-      fileURLToPath(new URL("../../src/lib/supabase/config.ts", import.meta.url)),
+      join(process.cwd(), "src/lib/supabase/config.ts"),
       "utf8",
     );
 
@@ -60,17 +60,17 @@ Append this test inside the existing `describe("Supabase public configuration", 
   });
 ```
 
-- [ ] **Step 3: Run the focused test and confirm it fails for the current implementation.**
+- [x] **Step 3: Run the focused test and confirm it fails for the current implementation.**
 
 Run:
 
 ```powershell
-corepack pnpm test -- tests/unit/supabase-config.test.ts --pool=forks --maxWorkers=1
+corepack pnpm test tests/unit/supabase-config.test.ts --pool=forks --maxWorkers=1
 ```
 
 Expected: the existing placeholder/provider tests pass, and the new test fails because the current module has no direct static Supabase environment references and still defaults to `process.env` indirectly.
 
-- [ ] **Step 4: Commit the red regression test.**
+- [x] **Step 4: Commit the red regression test.**
 
 ```powershell
 git add tests/unit/supabase-config.test.ts
@@ -87,7 +87,7 @@ git commit -m "test: cover static Supabase client configuration"
 - Consumes: The explicit `PublicEnvironment` argument already supported by `isSupabaseConfigured` and `isProviderEnabled`.
 - Produces: The same exported functions with a build-time-safe default environment.
 
-- [ ] **Step 1: Define the default public environment with direct references.**
+- [x] **Step 1: Define the default public environment with direct references.**
 
 Immediately after the `PublicEnvironment` type, add:
 
@@ -100,7 +100,7 @@ const publicEnvironment: PublicEnvironment = {
 };
 ```
 
-- [ ] **Step 2: Use the static object as the default argument.**
+- [x] **Step 2: Use the static object as the default argument.**
 
 Change both exported function signatures to use `publicEnvironment` while keeping their explicit override behavior:
 
@@ -128,18 +128,18 @@ export function isProviderEnabled(
 
 Do not change `hasValue`, the placeholder values, or any caller. The direct property expressions are the part Next.js must see during the client build.
 
-- [ ] **Step 3: Run the focused tests and typecheck.**
+- [x] **Step 3: Run the focused tests and typecheck.**
 
 Run:
 
 ```powershell
-corepack pnpm test -- tests/unit/supabase-config.test.ts --pool=forks --maxWorkers=1
+corepack pnpm test tests/unit/supabase-config.test.ts --pool=forks --maxWorkers=1
 corepack pnpm typecheck
 ```
 
 Expected: all tests in `supabase-config.test.ts` pass, including the new static-reference regression, and TypeScript exits with code 0.
 
-- [ ] **Step 4: Commit the implementation.**
+- [x] **Step 4: Commit the implementation.**
 
 ```powershell
 git add src/lib/supabase/config.ts tests/unit/supabase-config.test.ts
@@ -156,7 +156,7 @@ git commit -m "fix: inline public Supabase environment config"
 - Consumes: The statically configured `isSupabaseConfigured` module from Task 2 and the existing `.env.local` development values.
 - Produces: Evidence that the client bundle contains the public Supabase URL in the same compiled client code that contains the configuration guard, plus the exact Vercel follow-up required for production.
 
-- [ ] **Step 1: Build the production bundle.**
+- [x] **Step 1: Build the production bundle.**
 
 Run:
 
@@ -166,7 +166,7 @@ corepack pnpm build
 
 Expected: Next.js reports `Compiled successfully`, finishes TypeScript and static page generation, and exits with code 0.
 
-- [ ] **Step 2: Check the compiled client bundle without printing the publishable key.**
+- [x] **Step 2: Check the compiled client bundle without printing the publishable key.**
 
 Run from the repository root:
 
@@ -185,17 +185,17 @@ if ($matchingBundles.Count -eq 0) { throw 'The client bundle does not contain th
 
 Expected: the command prints a positive bundle count and never prints the key.
 
-- [ ] **Step 3: Run the full unit suite with one worker to avoid the observed local worker-start timeout.**
+- [x] **Step 3: Run the full unit suite with one worker to avoid the observed local worker-start timeout.**
 
 Run:
 
 ```powershell
-corepack pnpm test -- --pool=forks --maxWorkers=1
+corepack pnpm test --pool=forks --maxWorkers=1
 ```
 
 Expected: all unit test files and tests pass without the 15-worker timeout seen in the unconstrained run.
 
-- [ ] **Step 4: Confirm the Vercel environment after the code fix.**
+- [ ] **Step 4: Confirm the Vercel environment after the code fix.** *(Pending Vercel dashboard access.)*
 
 In the Vercel project connected to `jesveni2212/PWA-MIS-FINANZAS`, create these five variables for every environment being tested, especially Production and Preview:
 
@@ -207,7 +207,7 @@ In the Vercel project connected to `jesveni2212/PWA-MIS-FINANZAS`, create these 
 
 Save the variables, then redeploy the latest `main` commit. Do not paste values into the repository or into chat.
 
-- [ ] **Step 5: Confirm the deployed behavior.**
+- [ ] **Step 5: Confirm the deployed behavior.** *(Pending the production redeploy.)*
 
 Open `/acceso` and `/registro` on the new deployment, enter test values, and submit. With valid Vercel variables, the forms must no longer show `La autenticación estará disponible cuando se configure el servicio.` before the Supabase request. An invalid test credential may show the normal login error; that proves the request passed the configuration guard.
 
