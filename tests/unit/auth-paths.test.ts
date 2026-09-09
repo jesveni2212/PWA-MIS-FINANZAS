@@ -4,6 +4,7 @@ import {
   authPaths,
   isPrivatePath,
   privatePaths,
+  registrationConfirmationPath,
   safeReturnPath,
 } from "@/lib/auth/paths";
 
@@ -40,5 +41,11 @@ describe("auth path contracts", () => {
     expect(isPrivatePath("/registro")).toBe(false);
     expect(isPrivatePath("/recuperar-contrasena")).toBe(false);
     expect(isPrivatePath("/api/health")).toBe(false);
+  });
+
+  it("keeps the registration confirmation route public and safe", () => {
+    expect(registrationConfirmationPath).toBe("/registro-confirmado");
+    expect(isPrivatePath(registrationConfirmationPath)).toBe(false);
+    expect(safeReturnPath(registrationConfirmationPath)).toBe(registrationConfirmationPath);
   });
 });

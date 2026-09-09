@@ -25,6 +25,31 @@ describe("authentication callback", () => {
     expect(response.headers.get("location")).toBe("https://app.test/perfil");
   });
 
+  it("redirects a successful registration confirmation to the success screen", async () => {
+    const { GET } = await import("@/app/auth/callback/route");
+    const response = await GET(new NextRequest("https://app.test/auth/callback?code=confirmation-code&next=%2Fregistro-confirmado"));
+
+    expect(exchangeCodeForSession).toHaveBeenCalledWith("confirmation-code");
+    expect(response.headers.get("location")).toBe("https://app.test/registro-confirmado?estado=exitoso");
+  });
+
+  it("shows a controlled error screen for a missing confirmation code", async () => {
+    const { GET } = await import("@/app/auth/callback/route");
+    const response = await GET(new NextRequest("https://app.test/auth/callback?next=%2Fregistro-confirmado"));
+
+    expect(createClient).not.toHaveBeenCalled();
+    expect(response.headers.get("location")).toBe("https://app.test/registro-confirmado?estado=error");
+  });
+
+  it("shows a controlled error screen when Supabase rejects the confirmation code", async () => {
+    exchangeCodeForSession.mockResolvedValue({ error: { message: "invalid code" } });
+    const { GET } = await import("@/app/auth/callback/route");
+    const response = await GET(new NextRequest("https://app.test/auth/callback?code=invalid&next=%2Fregistro-confirmado"));
+
+    expect(exchangeCodeForSession).toHaveBeenCalledWith("invalid");
+    expect(response.headers.get("location")).toBe("https://app.test/registro-confirmado?estado=error");
+  });
+
   it("does not exchange a missing code or redirect an external next value", async () => {
     const { GET } = await import("@/app/auth/callback/route");
     const response = await GET(new NextRequest("https://app.test/auth/callback?next=https%3A%2F%2Fevil.test"));
