@@ -187,3 +187,55 @@ Result: both passed (exit code 0). Vitest retained the pre-existing Vite CommonJ
 ### Pre-existing auth-storage caveat
 
 `src/lib/supabase/client.ts` continues to call `createBrowserClient` without a custom Supabase auth-storage adapter. Supabase browser auth may therefore use its default browser storage for session persistence. This predates Task 3 and this fix wave does not alter login persistence. The Task 3 offline modules do not write credentials, access tokens, private HTML, or financial data to `localStorage`; financial cache/outbox data remains scoped IndexedDB only.
+
+## Fix wave: same-user server snapshot refresh
+
+**Status:** complete.
+
+**Implementation commit:** `c244491 fix: adopt fresh personal ledger snapshots`.
+
+### Changed files
+
+- `src/components/finance/personal-finance-provider.tsx`
+- `tests/unit/personal-finance-provider.test.tsx`
+
+### Fix details
+
+The inner provider now tracks the previous server snapshot timestamp. When the same authenticated user receives a strictly newer `initialLedgerUpdatedAt` through a preserved Next.js client component, it adopts the incoming server ledger into `baseLedgerRef`, reapplies pending optimistic operations to the visible ledger, updates memory freshness, and records the new timestamp before the timestamp-driven hydration/cache effect can persist a snapshot. A newer in-memory snapshot still wins over an older incoming server timestamp; an equal or older server timestamp is ignored.
+
+### Failing-before evidence
+
+```powershell
+.\node_modules\.bin\vitest.cmd run tests/unit/personal-finance-provider.test.tsx
+```
+
+Result before the fix:
+
+```text
+Test Files  1 failed (1)
+     Tests  1 failed | 8 passed (9)
+```
+
+The new same-user rerender regression expected `Servidor actualizado` but the preserved provider rendered `Servidor anterior`.
+
+### Focused validation
+
+The established pnpm wrapper cannot expose Vitest, so the direct local binary was used:
+
+```powershell
+.\node_modules\.bin\vitest.cmd run tests/unit/local-ledger.test.ts tests/unit/offline-sync.test.ts tests/unit/offline-storage.test.ts tests/unit/personal-finance-provider.test.tsx tests/unit/profile-form.test.tsx
+```
+
+Output:
+
+```text
+Test Files  5 passed (5)
+     Tests  27 passed (27)
+```
+
+```powershell
+corepack pnpm typecheck
+git diff --check
+```
+
+Result: both passed (exit code 0). The focused Vitest run retained the pre-existing Vite configuration warning and JSDOM navigation notice after logout; neither affected the results.
