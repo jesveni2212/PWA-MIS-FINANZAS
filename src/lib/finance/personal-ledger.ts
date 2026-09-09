@@ -1,52 +1,16 @@
+import { parsePersonalLedgerPayload, personalLedgerLoadError } from "@/lib/finance/ledger-payload";
 import { createClient } from "@/lib/supabase/client";
 import type {
-  AccountType,
   OperationType,
   PersonalAccount,
   PersonalLedger,
-  PersonalTransaction,
   PersonalTransactionDraft,
   PurchaseItem,
   PurchaseItemDraft,
 } from "@/lib/finance/types";
 
-type BalanceRow = {
-  id: string;
-  space_id: string;
-  account_type: AccountType;
-  institution: string;
-  name: string;
-  currency: string;
-  current_balance: number | string;
-};
-
-type TransactionRow = {
-  id: string;
-  operation_type: OperationType;
-  source_account_id: string | null;
-  destination_account_id: string | null;
-  amount: number | string;
-  occurred_on: string;
-  category: string | null;
-  note: string | null;
-  merchant: string | null;
-};
-
-type ItemRow = {
-  id: string;
-  transaction_id: string;
-  description: string;
-  quantity: number | string;
-  unit_price: number | string;
-};
-
-const loadError = "No pudimos cargar tus finanzas personales. Volvé a intentar.";
 const saveError = "No pudimos guardar la operación. Revisá los datos e intentá de nuevo.";
 const itemError = "Revisá los ítems de compra.";
-
-function numberValue(value: number | string): number {
-  return Number(value);
-}
 
 function nullableText(value: string | null | undefined): string | null {
   const normalized = value?.trim();
@@ -108,71 +72,11 @@ export function validateOperationAccounts(
 
 export async function loadPersonalLedger(): Promise<PersonalLedger> {
   try {
-    const client = createClient();
-    const { data: space, error: spaceError } = await client
-    .from("financial_spaces")
-    .select("id")
-    .eq("kind", "personal")
-    .maybeSingle();
-
-    if (spaceError || !space) throw new Error(loadError);
-
-    const [{ data: balances, error: balancesError }, { data: transactions, error: transactionsError }] = await Promise.all([
-      client.from("personal_account_balances").select("id,space_id,account_type,institution,name,currency,current_balance").eq("space_id", space.id).order("name"),
-      client.from("personal_transactions").select("id,operation_type,source_account_id,destination_account_id,amount,occurred_on,category,note,merchant").eq("personal_space_id", space.id).order("occurred_on", { ascending: false }).order("id", { ascending: false }),
-    ]);
-
-    if (balancesError || transactionsError) throw new Error(loadError);
-
-    const transactionRows = (transactions ?? []) as TransactionRow[];
-    const transactionIds = transactionRows.map((transaction) => transaction.id);
-    let itemRows: ItemRow[] = [];
-
-    if (transactionIds.length > 0) {
-      const { data: items, error: itemsError } = await client
-        .from("purchase_items")
-        .select("id,transaction_id,description,quantity,unit_price")
-        .in("transaction_id", transactionIds);
-      if (itemsError) throw new Error(loadError);
-      itemRows = (items ?? []) as ItemRow[];
-    }
-
-    const itemsByTransaction = new Map<string, PurchaseItem[]>();
-    for (const item of itemRows) {
-      const transactionItems = itemsByTransaction.get(item.transaction_id) ?? [];
-      transactionItems.push({ id: item.id, transactionId: item.transaction_id, description: item.description, quantity: numberValue(item.quantity), unitPrice: numberValue(item.unit_price) });
-      itemsByTransaction.set(item.transaction_id, transactionItems);
-    }
-
-    const accounts = ((balances ?? []) as BalanceRow[]).map((account) => ({
-        id: account.id,
-        spaceId: account.space_id,
-        accountType: account.account_type,
-        institution: account.institution,
-        name: account.name,
-        currency: account.currency,
-        currentBalance: numberValue(account.current_balance),
-      }));
-    const currencyByAccountId = new Map(accounts.map((account) => [account.id, account.currency]));
-
-    return {
-      accounts,
-      transactions: transactionRows.map((transaction): PersonalTransaction => ({
-        id: transaction.id,
-        operationType: transaction.operation_type,
-        sourceAccountId: transaction.source_account_id,
-        destinationAccountId: transaction.destination_account_id,
-        amount: numberValue(transaction.amount),
-        currency: currencyByAccountId.get(transaction.source_account_id ?? "") ?? currencyByAccountId.get(transaction.destination_account_id ?? "") ?? null,
-        occurredOn: transaction.occurred_on,
-        category: transaction.category,
-        note: transaction.note,
-        merchant: transaction.merchant,
-        items: itemsByTransaction.get(transaction.id) ?? [],
-      })),
-    };
+    const { data, error } = await createClient().rpc("get_personal_ledger", { p_limit: 200 });
+    if (error) throw new Error(personalLedgerLoadError);
+    return parsePersonalLedgerPayload(data);
   } catch {
-    throw new Error(loadError);
+    throw new Error(personalLedgerLoadError);
   }
 }
 
@@ -192,7 +96,12 @@ export async function recordPersonalTransaction(draft: PersonalTransactionDraft,
       p_category: nullableText(draft.category),
       p_note: nullableText(draft.note),
       p_merchant: nullableText(draft.merchant),
-      p_items: items.map((item) => ({ description: item.description, quantity: item.quantity, unit_price: item.unitPrice })),
+      p_items: items.map((item) => ({
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+      })),
+      p_client_operation_id: draft.clientOperationId ?? crypto.randomUUID(),
     });
 
     if (error || typeof data !== "string") throw new Error(saveError);

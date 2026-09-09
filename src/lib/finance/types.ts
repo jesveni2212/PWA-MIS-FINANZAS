@@ -55,4 +55,5 @@ export type PersonalTransactionDraft = {
   note?: string | null;
   merchant?: string | null;
   items?: PurchaseItemDraft[];
+  clientOperationId?: string;
 };

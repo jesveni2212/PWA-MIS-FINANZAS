@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { parsePersonalLedgerPayload } from "@/lib/finance/ledger-payload";
 import { loadPersonalLedger, normalizePurchaseItems, recordPersonalTransaction, validateOperationAccounts } from "@/lib/finance/personal-ledger";
 import type { PersonalAccount } from "@/lib/finance/types";
 import { createClient } from "@/lib/supabase/client";
@@ -14,7 +15,29 @@ const accounts: PersonalAccount[] = [
 ];
 
 describe("personal ledger helpers", () => {
-  beforeEach(() => mockedCreateClient.mockReset());
+  beforeEach(() => {
+    mockedCreateClient.mockReset();
+    vi.unstubAllGlobals();
+  });
+
+  it("accepts an empty grouped ledger payload", () => {
+    expect(parsePersonalLedgerPayload({ accounts: [], transactions: [] })).toEqual({ accounts: [], transactions: [] });
+  });
+
+  it("rejects malformed grouped ledger payloads with the generic ledger error", () => {
+    expect(() => parsePersonalLedgerPayload({ accounts: [], transactions: null }))
+      .toThrow("No pudimos cargar tus finanzas personales. Volvé a intentar.");
+  });
+
+  it("normalizes grouped ledger rows and defaults missing purchase items", () => {
+    expect(parsePersonalLedgerPayload({
+      accounts: [{ id: "cash-1", space_id: "personal-1", account_type: "cash", institution: "Otro", name: "Efectivo", currency: "PYG", current_balance: "150000" }],
+      transactions: [{ id: "transaction-1", operation_type: "expense", source_account_id: "cash-1", destination_account_id: null, amount: "8500", occurred_on: "2026-09-01", category: null, note: null, merchant: null }],
+    })).toEqual({
+      accounts: [accounts[0]],
+      transactions: [{ id: "transaction-1", operationType: "expense", sourceAccountId: "cash-1", destinationAccountId: null, amount: 8500, currency: "PYG", occurredOn: "2026-09-01", category: null, note: null, merchant: null, items: [] }],
+    });
+  });
 
   it("normalizes structured purchase items", () => {
     expect(normalizePurchaseItems([{ description: "  Leche ", quantity: "2", unitPrice: "8500" }]))
@@ -32,51 +55,35 @@ describe("personal ledger helpers", () => {
     expect(validateOperationAccounts("transfer", "cash-1", "usd-1", accounts)).toMatch(/misma moneda/i);
   });
 
-  it("loads only the personal ledger and maps database fields", async () => {
-    const spaceQuery = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn().mockResolvedValue({ data: { id: "personal-1" }, error: null }) };
-    const balancesQuery = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockResolvedValue({ data: [{ id: "cash-1", space_id: "personal-1", account_type: "cash", institution: "Otro", name: "Efectivo", currency: "PYG", current_balance: "150000" }], error: null }) };
-    const transactionsQuery = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn() };
-    transactionsQuery.order
-      .mockImplementationOnce(function (this: typeof transactionsQuery) { return this; })
-      .mockResolvedValue({ data: [{ id: "transaction-1", operation_type: "expense", source_account_id: "cash-1", destination_account_id: null, amount: "8500", occurred_on: "2026-09-01", category: "Comida", note: null, merchant: "Biggie" }], error: null });
-    const itemsQuery = { select: vi.fn().mockReturnThis(), in: vi.fn().mockResolvedValue({ data: [{ id: "item-1", transaction_id: "transaction-1", description: "Leche", quantity: "2", unit_price: "4250" }], error: null }) };
-    const from = vi.fn()
-      .mockReturnValueOnce(spaceQuery)
-      .mockReturnValueOnce(balancesQuery)
-      .mockReturnValueOnce(transactionsQuery)
-      .mockReturnValueOnce(itemsQuery);
-    mockedCreateClient.mockReturnValue({ from } as never);
+  it("loads the personal ledger with one grouped RPC call", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: {
+      accounts: [{ id: "cash-1", space_id: "personal-1", account_type: "cash", institution: "Otro", name: "Efectivo", currency: "PYG", current_balance: "150000" }],
+      transactions: [{ id: "transaction-1", operation_type: "expense", source_account_id: "cash-1", destination_account_id: null, amount: "8500", occurred_on: "2026-09-01", category: "Comida", note: null, merchant: "Biggie", items: [{ id: "item-1", transaction_id: "transaction-1", description: "Leche", quantity: "2", unit_price: "4250" }] }],
+    }, error: null });
+    mockedCreateClient.mockReturnValue({ rpc } as never);
 
     await expect(loadPersonalLedger()).resolves.toEqual({
       accounts: [accounts[0]],
       transactions: [{ id: "transaction-1", operationType: "expense", sourceAccountId: "cash-1", destinationAccountId: null, amount: 8500, currency: "PYG", occurredOn: "2026-09-01", category: "Comida", note: null, merchant: "Biggie", items: [{ id: "item-1", transactionId: "transaction-1", description: "Leche", quantity: 2, unitPrice: 4250 }] }],
     });
-    expect(spaceQuery.eq).toHaveBeenCalledWith("kind", "personal");
-    expect(balancesQuery.eq).toHaveBeenCalledWith("space_id", "personal-1");
-    expect(transactionsQuery.eq).toHaveBeenCalledWith("personal_space_id", "personal-1");
+    expect(rpc).toHaveBeenCalledWith("get_personal_ledger", { p_limit: 200 });
   });
 
-  it("derives a USD transaction currency from its involved account", async () => {
-    const spaceQuery = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn().mockResolvedValue({ data: { id: "personal-1" }, error: null }) };
-    const balancesQuery = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockResolvedValue({ data: [{ id: "usd-1", space_id: "personal-1", account_type: "bank", institution: "GNB", name: "Dólares", currency: "USD", current_balance: "100" }], error: null }) };
-    const transactionsQuery = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn() };
-    transactionsQuery.order.mockImplementationOnce(function (this: typeof transactionsQuery) { return this; }).mockResolvedValue({ data: [{ id: "transaction-usd", operation_type: "income", source_account_id: null, destination_account_id: "usd-1", amount: "25.5", occurred_on: "2026-09-01", category: "Freelance", note: null, merchant: null }], error: null });
-    const itemsQuery = { select: vi.fn().mockReturnThis(), in: vi.fn().mockResolvedValue({ data: [], error: null }) };
-    const from = vi.fn().mockReturnValueOnce(spaceQuery).mockReturnValueOnce(balancesQuery).mockReturnValueOnce(transactionsQuery).mockReturnValueOnce(itemsQuery);
-    mockedCreateClient.mockReturnValue({ from } as never);
-
-    await expect(loadPersonalLedger()).resolves.toMatchObject({ transactions: [expect.objectContaining({ id: "transaction-usd", currency: "USD" })] });
-  });
-
-  it("uses the sole personal-transaction RPC and keeps Supabase errors generic", async () => {
+  it("uses the sole personal-transaction RPC, preserves a client operation ID, and keeps Supabase errors generic", async () => {
     const rpc = vi.fn().mockResolvedValue({ data: "transaction-1", error: null });
     mockedCreateClient.mockReturnValue({ rpc } as never);
 
     await expect(recordPersonalTransaction({
-      operationType: "card_payment", sourceAccountId: "cash-1", destinationAccountId: "credit-1", amount: 50000, occurredOn: "2026-09-01", note: "  Pago mensual ", items: [{ description: "  Cuota ", quantity: "1", unitPrice: "50000" }],
+      operationType: "card_payment", sourceAccountId: "cash-1", destinationAccountId: "credit-1", amount: 50000, occurredOn: "2026-09-01", note: "  Pago mensual ", items: [{ description: "  Cuota ", quantity: "1", unitPrice: "50000" }], clientOperationId: "11111111-1111-4111-8111-111111111111",
     }, accounts)).resolves.toBe("transaction-1");
     expect(rpc).toHaveBeenCalledWith("record_personal_transaction", expect.objectContaining({
-      p_operation_type: "card_payment", p_note: "Pago mensual", p_items: [{ description: "Cuota", quantity: 1, unit_price: 50000 }],
+      p_operation_type: "card_payment", p_note: "Pago mensual", p_items: [{ description: "Cuota", quantity: 1, unit_price: 50000 }], p_client_operation_id: "11111111-1111-4111-8111-111111111111",
+    }));
+
+    vi.stubGlobal("crypto", { randomUUID: vi.fn().mockReturnValue("22222222-2222-4222-8222-222222222222") });
+    await recordPersonalTransaction({ operationType: "expense", sourceAccountId: "cash-1", destinationAccountId: null, amount: 1, occurredOn: "2026-09-01" }, accounts);
+    expect(rpc).toHaveBeenLastCalledWith("record_personal_transaction", expect.objectContaining({
+      p_client_operation_id: "22222222-2222-4222-8222-222222222222",
     }));
 
     rpc.mockResolvedValueOnce({ data: null, error: { message: "internal database detail" } });
