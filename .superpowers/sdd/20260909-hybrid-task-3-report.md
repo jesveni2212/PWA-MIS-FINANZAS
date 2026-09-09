@@ -239,3 +239,57 @@ git diff --check
 ```
 
 Result: both passed (exit code 0). The focused Vitest run retained the pre-existing Vite configuration warning and JSDOM navigation notice after logout; neither affected the results.
+
+## Fix wave: stale in-flight refresh race
+
+**Status:** complete.
+
+**Implementation commit:** `e1fb61f fix: discard stale personal ledger refreshes`.
+
+### Changed files
+
+- `src/components/finance/personal-finance-provider.tsx`
+- `tests/unit/personal-finance-provider.test.tsx`
+
+### Fix details
+
+The provider now maintains a monotonic snapshot generation. `refresh()` captures that generation before loading the server ledger. Adopting a strictly newer same-user RSC snapshot increments it. If an earlier refresh resolves afterward, it exits before changing the base or visible ledger, in-memory snapshot, timestamp, or IndexedDB cache. Pending optimistic operations continue to be reapplied to accepted snapshots.
+
+The new deferred-refresh regression starts a refresh, rerenders the same user with a newer server snapshot while that refresh is pending, then resolves the old request. It verifies the newer account remains visible and the stale response is never persisted as a freshly timestamped cache entry.
+
+### Failing-before evidence
+
+```powershell
+.\node_modules\.bin\vitest.cmd run tests/unit/personal-finance-provider.test.tsx
+```
+
+Result before the fix:
+
+```text
+Test Files  1 failed (1)
+     Tests  1 failed | 9 passed (10)
+```
+
+The deferred-refresh test showed `Respuesta anterior` from the resolved old request being passed to `writeLedgerCache` with a current timestamp after the visible ledger had correctly adopted `Servidor más nuevo`.
+
+### Focused validation
+
+The pnpm wrapper remains unable to expose Vitest, so the direct local binary was used:
+
+```powershell
+.\node_modules\.bin\vitest.cmd run tests/unit/local-ledger.test.ts tests/unit/offline-sync.test.ts tests/unit/offline-storage.test.ts tests/unit/personal-finance-provider.test.tsx tests/unit/profile-form.test.tsx
+```
+
+Output:
+
+```text
+Test Files  5 passed (5)
+     Tests  28 passed (28)
+```
+
+```powershell
+corepack pnpm typecheck
+git diff --check
+```
+
+Result: both passed (exit code 0). Vitest retained the pre-existing Vite CommonJS/ESM configuration warning and JSDOM logged `Not implemented: navigation to another Document` after the successful logout redirect; neither affected assertions or command status. This change does not alter Task 4, reminders, or the pre-existing browser auth-storage behavior.
