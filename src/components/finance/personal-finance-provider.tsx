@@ -81,6 +81,7 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
   const baseLedgerRef = useRef(initialSnapshot.ledger);
   const pendingRef = useRef<PendingTransaction[]>([]);
   const serverSnapshotUpdatedAtRef = useRef(initialLedgerUpdatedAt);
+  const snapshotGenerationRef = useRef(0);
   const syncPromiseRef = useRef<Promise<void> | null>(null);
   const [ledger, setLedger] = useState(() => initialSnapshot.ledger);
   const [freshness, setFreshness] = useState<PersonalFinanceContextValue["freshness"]>(() => initialSnapshot === memorySnapshot ? "cached" : initialLedgerUpdatedAt === null ? "offline" : "server");
@@ -102,9 +103,11 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
   }, [renderPending]);
 
   const refresh = useCallback(async () => {
+    const refreshGeneration = snapshotGenerationRef.current;
     setIsSyncing(true);
     try {
       const nextLedger = await loadPersonalLedger();
+      if (snapshotGenerationRef.current !== refreshGeneration) return;
       const updatedAt = new Date().toISOString();
       baseLedgerRef.current = nextLedger;
       latestLedgerByUser?.set(userId, { ledger: nextLedger, updatedAt });
@@ -214,6 +217,7 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
     const previousServerSnapshotUpdatedAt = serverSnapshotUpdatedAtRef.current;
     if (previousServerSnapshotUpdatedAt !== null && initialLedgerUpdatedAt <= previousServerSnapshotUpdatedAt) return;
     serverSnapshotUpdatedAtRef.current = initialLedgerUpdatedAt;
+    snapshotGenerationRef.current += 1;
 
     const newerMemorySnapshot = latestLedgerByUser?.get(userId);
     if (newerMemorySnapshot && newerMemorySnapshot.updatedAt > initialLedgerUpdatedAt) return;

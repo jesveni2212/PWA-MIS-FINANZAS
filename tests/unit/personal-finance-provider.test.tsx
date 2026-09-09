@@ -216,6 +216,37 @@ describe("PersonalFinanceProvider", () => {
     ));
   });
 
+  it("discards an older refresh that resolves after a newer same-user server snapshot", async () => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    let resolveRefresh!: (ledger: typeof initialLedger) => void;
+    const staleRefreshLedger = { ...initialLedger, accounts: [{ ...initialLedger.accounts[0]!, name: "Respuesta anterior" }] };
+    const newerLedger = { ...initialLedger, accounts: [{ ...initialLedger.accounts[0]!, name: "Servidor mÃ¡s nuevo" }] };
+    loadPersonalLedger.mockImplementation(() => new Promise((resolve) => { resolveRefresh = resolve; }));
+    const view = render(
+      <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-refresh-race">
+        <RefreshableLedgerReader />
+      </PersonalFinanceProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar" }));
+    await waitFor(() => expect(loadPersonalLedger).toHaveBeenCalledTimes(1));
+
+    view.rerender(
+      <PersonalFinanceProvider initialLedger={newerLedger} initialLedgerUpdatedAt="2026-09-09T00:01:00.000Z" userId="user-refresh-race">
+        <LedgerReader />
+      </PersonalFinanceProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Servidor mÃ¡s nuevo")).toBeInTheDocument());
+    writeLedgerCache.mockClear();
+    resolveRefresh(staleRefreshLedger);
+
+    await waitFor(() => expect(screen.getByText("Servidor mÃ¡s nuevo")).toBeInTheDocument());
+    expect(writeLedgerCache).not.toHaveBeenCalledWith(
+      "user-refresh-race",
+      expect.objectContaining({ accounts: [expect.objectContaining({ name: "Respuesta anterior" })] }),
+      expect.any(String),
+    );
+  });
+
   it("resets visible ledger and pending state when the active user changes", async () => {
     loadPersonalLedger.mockImplementation(() => new Promise(() => undefined));
     Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
