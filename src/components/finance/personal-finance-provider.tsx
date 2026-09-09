@@ -25,13 +25,10 @@ const PersonalFinanceContext = createContext<PersonalFinanceContextValue | null>
 const latestLedgerByUser = typeof window === "undefined" ? null : new Map<string, PersonalLedger>();
 
 export function PersonalFinanceProvider({ userId, initialLedger, children }: PersonalFinanceProviderProps) {
-  const cachedLedger = latestLedgerByUser?.get(userId);
-  const [ledger, setLedger] = useState(() => cachedLedger ?? initialLedger);
-  const [freshness, setFreshness] = useState<PersonalFinanceContextValue["freshness"]>(cachedLedger ? "cached" : "server");
+  const [ledger, setLedger] = useState(() => initialLedger);
+  const [freshness, setFreshness] = useState<PersonalFinanceContextValue["freshness"]>("server");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
-
-  if (!cachedLedger) latestLedgerByUser?.set(userId, initialLedger);
 
   const refresh = useCallback(async () => {
     setIsSyncing(true);
