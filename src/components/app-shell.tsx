@@ -49,12 +49,13 @@ export function AppShell({ children }: AppShellProps) {
       const { data: authData, error: authError } = await client.auth.getUser();
       if (authError || !authData.user) return;
 
-      const { data } = await client
+      const { data, error: profileError } = await client
         .from("profiles")
         .select("display_name")
         .eq("id", authData.user.id)
         .maybeSingle();
 
+      if (profileError) return;
       if (active) setDisplayName(data?.display_name ?? null);
     }
 

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/app-shell";
 import { MoneyValue } from "@/components/ui/money-value";
@@ -12,10 +12,13 @@ function mockProfile(displayName: string | null, profileError: object | null = n
   const maybeSingle = vi.fn().mockResolvedValue({ data: { display_name: displayName }, error: profileError });
   const eq = vi.fn().mockReturnValue({ maybeSingle });
   const select = vi.fn().mockReturnValue({ eq });
+  const from = vi.fn().mockReturnValue({ select });
   mockedCreateClient.mockReturnValue({
     auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } }, error: null }) },
-    from: vi.fn().mockReturnValue({ select }),
+    from,
   } as never);
+
+  return { eq, from, maybeSingle, select };
 }
 
 beforeEach(() => mockProfile("Ana"));
@@ -23,17 +26,34 @@ afterEach(() => { cleanup(); mockedCreateClient.mockReset(); });
 
 describe("AppShell greeting", () => {
   it("renders the profile name in the compact greeting", async () => {
+    const { eq, from, select } = mockProfile("Ana");
     render(<AppShell><p>Contenido</p></AppShell>);
 
-    await waitFor(() => expect(screen.getAllByText("Hola, Ana").length).toBeGreaterThan(0));
+    const mobileHeader = screen.getByRole("banner");
+    const desktopSidebar = screen.getByRole("navigation", { name: "Navegación principal" });
+
+    await waitFor(() => {
+      expect(within(mobileHeader).getByText("Hola, Ana")).toBeInTheDocument();
+      expect(within(desktopSidebar).getByText("Hola, Ana")).toBeInTheDocument();
+    });
+    expect(from).toHaveBeenCalledWith("profiles");
+    expect(select).toHaveBeenCalledWith("display_name");
+    expect(eq).toHaveBeenCalledWith("id", "user-1");
   });
 
   it("keeps the generic greeting when the profile query fails", async () => {
-    mockProfile(null, { message: "profile unavailable" });
+    mockProfile("Ana", { message: "profile unavailable" });
     render(<AppShell><p>Contenido</p></AppShell>);
 
-    await waitFor(() => expect(screen.getAllByText("Bienvenido/a").length).toBeGreaterThan(0));
-    expect(screen.queryByText(/Hola,/)).not.toBeInTheDocument();
+    const mobileHeader = screen.getByRole("banner");
+    const desktopSidebar = screen.getByRole("navigation", { name: "Navegación principal" });
+
+    await waitFor(() => {
+      expect(within(mobileHeader).getByText("Bienvenido/a")).toBeInTheDocument();
+      expect(within(desktopSidebar).getByText("Bienvenido/a")).toBeInTheDocument();
+    });
+    expect(within(mobileHeader).queryByText(/Hola,/)).not.toBeInTheDocument();
+    expect(within(desktopSidebar).queryByText(/Hola,/)).not.toBeInTheDocument();
   });
 });
 
