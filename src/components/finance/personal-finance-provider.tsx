@@ -80,6 +80,7 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
     : { ledger: initialLedger, updatedAt: initialLedgerUpdatedAt };
   const baseLedgerRef = useRef(initialSnapshot.ledger);
   const pendingRef = useRef<PendingTransaction[]>([]);
+  const serverSnapshotUpdatedAtRef = useRef(initialLedgerUpdatedAt);
   const syncPromiseRef = useRef<Promise<void> | null>(null);
   const [ledger, setLedger] = useState(() => initialSnapshot.ledger);
   const [freshness, setFreshness] = useState<PersonalFinanceContextValue["freshness"]>(() => initialSnapshot === memorySnapshot ? "cached" : initialLedgerUpdatedAt === null ? "offline" : "server");
@@ -207,6 +208,22 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
       setFreshness("offline");
     }
   }, [queueTransaction, refresh, synchronize]);
+
+  useEffect(() => {
+    if (initialLedgerUpdatedAt === null) return;
+    const previousServerSnapshotUpdatedAt = serverSnapshotUpdatedAtRef.current;
+    if (previousServerSnapshotUpdatedAt !== null && initialLedgerUpdatedAt <= previousServerSnapshotUpdatedAt) return;
+    serverSnapshotUpdatedAtRef.current = initialLedgerUpdatedAt;
+
+    const newerMemorySnapshot = latestLedgerByUser?.get(userId);
+    if (newerMemorySnapshot && newerMemorySnapshot.updatedAt > initialLedgerUpdatedAt) return;
+
+    baseLedgerRef.current = initialLedger;
+    latestLedgerByUser?.set(userId, { ledger: initialLedger, updatedAt: initialLedgerUpdatedAt });
+    renderPending(initialLedger);
+    setFreshness("server");
+    setLastUpdatedAt(initialLedgerUpdatedAt);
+  }, [initialLedger, initialLedgerUpdatedAt, renderPending, userId]);
 
   useEffect(() => {
     let active = true;

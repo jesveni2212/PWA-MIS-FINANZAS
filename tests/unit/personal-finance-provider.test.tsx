@@ -192,6 +192,30 @@ describe("PersonalFinanceProvider", () => {
     expect(screen.getByText("Memoria nueva")).toBeInTheDocument();
   });
 
+  it("adopts a newer same-user server snapshot before cache persistence", async () => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    const olderLedger = { ...initialLedger, accounts: [{ ...initialLedger.accounts[0]!, name: "Servidor anterior" }] };
+    const newerLedger = { ...initialLedger, accounts: [{ ...initialLedger.accounts[0]!, name: "Servidor actualizado" }] };
+    const view = render(
+      <PersonalFinanceProvider initialLedger={olderLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-refresh-same">
+        <LedgerReader />
+      </PersonalFinanceProvider>,
+    );
+    expect(screen.getByText("Servidor anterior")).toBeInTheDocument();
+
+    view.rerender(
+      <PersonalFinanceProvider initialLedger={newerLedger} initialLedgerUpdatedAt="2026-09-09T00:01:00.000Z" userId="user-refresh-same">
+        <LedgerReader />
+      </PersonalFinanceProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Servidor actualizado")).toBeInTheDocument());
+    await waitFor(() => expect(writeLedgerCache).toHaveBeenLastCalledWith(
+      "user-refresh-same",
+      expect.objectContaining({ accounts: [expect.objectContaining({ name: "Servidor actualizado" })] }),
+      "2026-09-09T00:01:00.000Z",
+    ));
+  });
+
   it("resets visible ledger and pending state when the active user changes", async () => {
     loadPersonalLedger.mockImplementation(() => new Promise(() => undefined));
     Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
