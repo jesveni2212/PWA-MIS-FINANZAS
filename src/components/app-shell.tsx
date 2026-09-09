@@ -78,8 +78,8 @@ export function AppShell({ children }: AppShellProps) {
     <div className="min-h-dvh bg-background text-foreground lg:pl-64">
       <header className="border-b border-border/70 bg-background/85 px-5 py-4 backdrop-blur lg:hidden">
         <div className="flex items-center justify-between gap-4">
-          <p className="font-serif text-xl font-semibold tracking-tight">{site.name}</p>
-          <p className="text-right text-sm font-semibold text-text">{greeting}</p>
+          <p className="shrink-0 font-serif text-xl font-semibold tracking-tight">{site.name}</p>
+          <p className="min-w-0 flex-1 truncate text-right text-sm font-semibold text-text">{greeting}</p>
         </div>
       </header>
 
@@ -111,9 +111,9 @@ export function AppShell({ children }: AppShellProps) {
             ))}
           </ul>
 
-          <div className="hidden border-t border-border/80 px-3 pt-5 lg:mt-auto lg:block">
+          <div className="hidden min-w-0 border-t border-border/80 px-3 pt-5 lg:mt-auto lg:block">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">Tu espacio</p>
-            <p className="mt-1 text-sm font-semibold text-text">{greeting}</p>
+            <p className="mt-1 min-w-0 truncate text-sm font-semibold text-text">{greeting}</p>
           </div>
 
           <button

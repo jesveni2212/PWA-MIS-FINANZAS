@@ -35,4 +35,27 @@ describe("SignUpForm with Supabase configured", () => {
     }));
     expect(await screen.findByText("Cuenta creada. Revisá tu correo si se solicita confirmación.")).toBeInTheDocument();
   });
+
+  it("navigates to the successful confirmation page for an immediate session", async () => {
+    signUp.mockResolvedValue({ data: { session: { access_token: "token" } }, error: null });
+    const realWindow = window;
+    const assign = vi.fn();
+    const testWindow = Object.create(realWindow) as typeof window;
+    Object.defineProperty(testWindow, "location", {
+      configurable: true,
+      value: { assign, origin: realWindow.location.origin },
+    });
+
+    try {
+      vi.stubGlobal("window", testWindow);
+      render(<SignUpForm />);
+      fireEvent.change(screen.getByLabelText("Correo electrónico"), { target: { value: "ana@example.com" } });
+      fireEvent.change(screen.getByLabelText("Contraseña"), { target: { value: "segura123" } });
+      fireEvent.click(screen.getByRole("button", { name: "Crear mi cuenta" }));
+
+      await waitFor(() => expect(assign).toHaveBeenCalledWith("/registro-confirmado?estado=exitoso"));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

@@ -41,6 +41,28 @@ describe("AppShell greeting", () => {
     expect(eq).toHaveBeenCalledWith("id", "user-1");
   });
 
+  it("keeps long greetings in shrinkable single-line containers", async () => {
+    const longName = "A".repeat(80);
+    const expectedGreeting = `Hola, ${longName}`;
+    mockProfile(longName);
+    render(<AppShell><p>Contenido</p></AppShell>);
+
+    const mobileHeader = screen.getByRole("banner");
+    const desktopSidebar = screen.getByRole("navigation", { name: "Navegación principal" });
+
+    await waitFor(() => {
+      const mobileGreeting = within(mobileHeader).getByText(expectedGreeting);
+      const desktopGreeting = within(desktopSidebar).getByText(expectedGreeting);
+
+      expect(mobileGreeting).toHaveClass("min-w-0", "flex-1", "truncate", "text-right");
+      expect(desktopGreeting).toHaveClass("min-w-0", "truncate");
+      expect(mobileGreeting.textContent).toBe(expectedGreeting);
+      expect(desktopGreeting.textContent).toBe(expectedGreeting);
+    });
+
+    expect(within(mobileHeader).getByText("Mis Finanzas")).toHaveClass("shrink-0");
+  });
+
   it("keeps the generic greeting when the profile query fails", async () => {
     mockProfile("Ana", { message: "profile unavailable" });
     render(<AppShell><p>Contenido</p></AppShell>);
