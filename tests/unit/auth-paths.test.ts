@@ -26,10 +26,15 @@ describe("auth path contracts", () => {
   it("accepts only safe internal return paths", () => {
     expect(safeReturnPath("/perfil")).toBe("/perfil");
     expect(safeReturnPath("/movimientos?mes=8")).toBe("/movimientos?mes=8");
+    expect(safeReturnPath("/recuperar-contrasena?modo=restablecer")).toBe(
+      "/recuperar-contrasena?modo=restablecer",
+    );
     expect(safeReturnPath(null)).toBe("/");
     expect(safeReturnPath("https://bad.test")).toBe("/");
     expect(safeReturnPath("//bad.test")).toBe("/");
+    expect(safeReturnPath("/\\evil.test")).toBe("/");
     expect(safeReturnPath("/acceso")).toBe("/");
+    expect(safeReturnPath("/recuperar-contrasena?modo=otro")).toBe("/");
   });
 
   it("marks only protected routes as private", () => {

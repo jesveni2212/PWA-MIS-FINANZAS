@@ -25,6 +25,16 @@ describe("authentication callback", () => {
     expect(response.headers.get("location")).toBe("https://app.test/perfil");
   });
 
+  it("redirects a successful password recovery exchange to reset mode", async () => {
+    const { GET } = await import("@/app/auth/callback/route");
+    const response = await GET(new NextRequest("https://app.test/auth/callback?code=recovery-code&next=%2Frecuperar-contrasena%3Fmodo%3Drestablecer"));
+
+    expect(exchangeCodeForSession).toHaveBeenCalledWith("recovery-code");
+    expect(response.headers.get("location")).toBe(
+      "https://app.test/recuperar-contrasena?modo=restablecer",
+    );
+  });
+
   it("redirects a successful registration confirmation to the success screen", async () => {
     const { GET } = await import("@/app/auth/callback/route");
     const response = await GET(new NextRequest("https://app.test/auth/callback?code=confirmation-code&next=%2Fregistro-confirmado"));
