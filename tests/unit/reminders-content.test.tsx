@@ -46,11 +46,12 @@ describe("RemindersContent", () => {
   });
 
   it("deletes a reminder permanently after confirmation", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<RemindersContent initialReminders={[pendingReminder]} />);
     fireEvent.click(screen.getByRole("button", { name: "Eliminar Luz" }));
+    expect(screen.getByRole("dialog", { name: "¿Eliminar “Luz”?" })).toBeInTheDocument();
+    expect(screen.getByText(/Esta acción no se puede deshacer/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar definitivamente" }));
     await waitFor(() => expect(deleteReminder).toHaveBeenCalledWith("reminder-1"));
     expect(screen.queryByText("Luz")).not.toBeInTheDocument();
-    vi.restoreAllMocks();
   });
 });

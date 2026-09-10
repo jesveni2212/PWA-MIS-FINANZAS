@@ -45,7 +45,7 @@ export function RemindersContent({ initialReminders }: RemindersContentProps) {
 
   async function remove(reminderId: string) {
     setError("");
-    try { await deleteReminder(reminderId); setReminders((current) => current.filter((item) => item.reminder.id !== reminderId)); } catch (actionError) { setError(actionError instanceof Error ? actionError.message : "No pudimos eliminar el recordatorio."); }
+    try { await deleteReminder(reminderId); setReminders((current) => current.filter((item) => item.reminder.id !== reminderId)); } catch (actionError) { setError(actionError instanceof Error ? actionError.message : "No pudimos eliminar el recordatorio."); throw actionError; }
   }
 
   function group(title: string, items: ReminderWithOccurrence[]) {
