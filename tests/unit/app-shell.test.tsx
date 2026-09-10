@@ -56,6 +56,16 @@ describe("AppShell greeting", () => {
     expect(within(mobileHeader).queryByText(/Hola,/)).not.toBeInTheDocument();
     expect(within(desktopSidebar).queryByText(/Hola,/)).not.toBeInTheDocument();
   });
+
+  it("exposes Profile from the mobile header with initials", () => {
+    render(<AppShell displayName="Ana Pérez"><p>Contenido</p></AppShell>);
+
+    const mobileHeader = screen.getByRole("banner");
+    const profileLink = within(mobileHeader).getByRole("link", { name: "Abrir perfil" });
+
+    expect(profileLink).toHaveAttribute("href", "/perfil");
+    expect(within(profileLink).getByRole("img", { name: "Foto de perfil" })).toHaveTextContent("AP");
+  });
 });
 
 describe("AppShell", () => {
@@ -86,6 +96,17 @@ describe("AppShell", () => {
     expect(screen.getByText("Contenido de prueba")).toBeInTheDocument();
   });
 
+  it("keeps Profile out of the mobile dock while preserving it in the desktop sidebar", () => {
+    render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
+
+    const navigation = screen.getByRole("navigation", { name: "Navegación principal" });
+    const profileLink = within(navigation).getByRole("link", { name: "Perfil" });
+
+    expect(navigation).toHaveClass("mobile-bottom-nav", "rounded-2xl");
+    expect(profileLink.closest("li")).toHaveClass("hidden", "lg:block");
+    expect(within(navigation).getByRole("link", { name: "Recordatorios" })).toHaveClass("min-h-14");
+  });
+
   it("persists the balance visibility preference", () => {
     render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
 
@@ -106,6 +127,16 @@ describe("AppShell", () => {
     expect(currentLink).toHaveAttribute("aria-current", "page");
     expect(currentLink).toHaveClass("border-signal/40", "bg-brand-soft", "text-signal");
     expect(screen.getByRole("link", { name: "Inicio" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("marks the header Profile avatar when the profile route is active", () => {
+    mockedUsePathname.mockReturnValue("/perfil");
+    render(<AppShell displayName="Ana"><p>Contenido</p></AppShell>);
+
+    const profileLink = within(screen.getByRole("banner")).getByRole("link", { name: "Abrir perfil" });
+
+    expect(profileLink).toHaveAttribute("aria-current", "page");
+    expect(profileLink).toHaveClass("border-signal", "bg-brand-soft");
   });
 });
 

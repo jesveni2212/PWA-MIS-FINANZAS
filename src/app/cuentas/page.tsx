@@ -22,7 +22,7 @@ export default async function CuentasPage() {
 
   return (
     <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt={initialLedgerUpdatedAt} userId={session.userId}>
-      <AppShell displayName={session.displayName}>
+      <AppShell avatarPath={session.avatarPath} displayName={session.displayName}>
         <section>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-signal">Libro personal</p>
           <h1 className="mt-3 font-serif text-4xl font-semibold tracking-tight sm:text-5xl">Cuentas y tarjetas</h1>

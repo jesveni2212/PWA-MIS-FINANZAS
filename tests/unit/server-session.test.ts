@@ -35,15 +35,15 @@ describe("getServerSessionData", () => {
     expect(from).not.toHaveBeenCalled();
   });
 
-  it("returns only the authenticated user ID and profile display name", async () => {
+  it("returns the authenticated user ID and profile identity data", async () => {
     getUser.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
-    maybeSingle.mockResolvedValue({ data: { display_name: "Ana" }, error: null });
+    maybeSingle.mockResolvedValue({ data: { display_name: "Ana", avatar_path: "user-1/avatar.webp" }, error: null });
 
     const { getServerSessionData } = await import("@/lib/auth/server-session");
 
-    await expect(getServerSessionData()).resolves.toEqual({ userId: "user-1", displayName: "Ana" });
+    await expect(getServerSessionData()).resolves.toEqual({ userId: "user-1", displayName: "Ana", avatarPath: "user-1/avatar.webp" });
     expect(from).toHaveBeenCalledWith("profiles");
-    expect(select).toHaveBeenCalledWith("display_name");
+    expect(select).toHaveBeenCalledWith("display_name,avatar_path");
     expect(eq).toHaveBeenCalledWith("id", "user-1");
   });
 });

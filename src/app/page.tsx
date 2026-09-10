@@ -28,7 +28,7 @@ export default async function HomePage() {
 
   return (
     <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt={initialLedgerUpdatedAt} userId={session.userId}>
-      <AppShell displayName={session.displayName}><PersonalDashboard initialReminders={initialReminders} /></AppShell>
+      <AppShell avatarPath={session.avatarPath} displayName={session.displayName}><PersonalDashboard initialReminders={initialReminders} /></AppShell>
     </PersonalFinanceProvider>
   );
 }

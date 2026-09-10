@@ -10,5 +10,5 @@ export default async function RecordatoriosPage() {
   if (!session) redirect("/acceso?next=%2Frecordatorios");
   const initialReminders = await loadRemindersServer();
 
-  return <AppShell displayName={session.displayName}><RemindersContent initialReminders={initialReminders} /></AppShell>;
+  return <AppShell avatarPath={session.avatarPath} displayName={session.displayName}><RemindersContent initialReminders={initialReminders} /></AppShell>;
 }

@@ -41,4 +41,13 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; background: var(--ink); color: var(--text); font-family: var(--font-sans); }
 
+.mobile-bottom-nav {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+  touch-action: manipulation;
+}
+
+@media (min-width: 1024px) {
+  .mobile-bottom-nav { bottom: 0; }
+}
+
 ::selection { background: var(--signal); color: var(--ink); }
