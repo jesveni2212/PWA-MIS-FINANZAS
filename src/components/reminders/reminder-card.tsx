@@ -11,9 +11,10 @@ type ReminderCardProps = {
   onResolve: (occurrenceId: string, status: Extract<ReminderOccurrenceStatus, "paid" | "omitted">) => void | Promise<void>;
   onPostpone: (occurrenceId: string, nextDueOn: string) => void | Promise<void>;
   onEdit: (reminder: Reminder) => void;
+  onDelete: (reminderId: string) => void | Promise<void>;
 };
 
-export function ReminderCard({ reminder, occurrence, onResolve, onPostpone, onEdit }: ReminderCardProps) {
+export function ReminderCard({ reminder, occurrence, onResolve, onPostpone, onEdit, onDelete }: ReminderCardProps) {
   const [nextDueOn, setNextDueOn] = useState(occurrence?.dueOn ?? reminder.nextDueOn);
   const [busy, setBusy] = useState(false);
   const isPending = occurrence?.status === "pending";
@@ -23,10 +24,15 @@ export function ReminderCard({ reminder, occurrence, onResolve, onPostpone, onEd
     try { await action(); } finally { setBusy(false); }
   }
 
+  async function handleDelete() {
+    if (!window.confirm(`¿Eliminar definitivamente "${reminder.name}"? Se borrarán sus ocurrencias y su historial.`)) return;
+    await action(() => onDelete(reminder.id));
+  }
+
   return <article className="grid gap-4 rounded-2xl border border-border bg-panel p-5">
     <div className="flex items-start justify-between gap-4">
       <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-signal">{reminder.category ?? "Recordatorio"}</p><h3 className="mt-2 text-lg font-semibold">{reminder.name}</h3></div>
-      <button aria-label={`Editar ${reminder.name}`} className="rounded-lg border border-border px-3 py-1 text-xs font-semibold" onClick={() => onEdit(reminder)} type="button">Editar</button>
+      <div className="flex flex-wrap justify-end gap-2"><button aria-label={`Editar ${reminder.name}`} className="rounded-lg border border-border px-3 py-1 text-xs font-semibold" onClick={() => onEdit(reminder)} type="button">Editar</button><button aria-label={`Eliminar ${reminder.name}`} className="rounded-lg border border-danger/40 px-3 py-1 text-xs font-semibold text-danger disabled:opacity-60" disabled={busy} onClick={() => void handleDelete()} type="button">Eliminar</button></div>
     </div>
     <div className="flex flex-wrap items-end justify-between gap-3 text-sm"><div><p className="text-muted">Próximo vencimiento</p><p className="mt-1 font-semibold">{occurrence?.dueOn ?? reminder.nextDueOn}</p></div>{reminder.amount !== null && reminder.currency ? <MoneyValue amount={reminder.amount} className="font-semibold" currency={reminder.currency} /> : <span className="text-muted">Importe variable</span>}</div>
     {!reminder.active ? <span className="w-fit rounded-full bg-background px-3 py-1 text-xs font-semibold text-muted">Inactivo</span> : null}

@@ -102,7 +102,7 @@ describe("AppShell", () => {
     const navigation = screen.getByRole("navigation", { name: "Navegación principal" });
     const profileLink = within(navigation).getByRole("link", { name: "Perfil" });
 
-    expect(navigation).toHaveClass("mobile-bottom-nav", "rounded-2xl");
+    expect(navigation).toHaveClass("mobile-bottom-nav", "border-t", "bg-background/90");
     expect(profileLink.closest("li")).toHaveClass("hidden", "lg:block");
     expect(within(navigation).getByRole("link", { name: "Recordatorios" })).toHaveClass("min-h-14");
   });
@@ -125,7 +125,7 @@ describe("AppShell", () => {
 
     const currentLink = screen.getByRole("link", { name: "Movimientos" });
     expect(currentLink).toHaveAttribute("aria-current", "page");
-    expect(currentLink).toHaveClass("border-signal/40", "bg-brand-soft", "text-signal");
+    expect(currentLink).toHaveClass("lg:border-signal/40", "lg:bg-brand-soft", "text-signal");
     expect(screen.getByRole("link", { name: "Inicio" })).not.toHaveAttribute("aria-current");
   });
 

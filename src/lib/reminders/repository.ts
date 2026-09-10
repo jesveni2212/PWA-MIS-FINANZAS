@@ -122,3 +122,7 @@ export function resolveReminderOccurrence(occurrenceId: string, status: Reminder
 export function postponeReminderOccurrence(occurrenceId: string, nextDueOn: string): Promise<void> {
   return callRpc<void>("postpone_personal_reminder_occurrence", { p_occurrence_id: occurrenceId, p_next_due_on: nextDueOn });
 }
+
+export function deleteReminder(reminderId: string): Promise<void> {
+  return callRpc<void>("delete_personal_reminder", { p_reminder_id: reminderId });
+}

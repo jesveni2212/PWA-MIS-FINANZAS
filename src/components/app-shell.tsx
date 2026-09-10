@@ -71,11 +71,12 @@ function NavigationLink({ item, pathname }: { item: NavigationItem; pathname: st
     <li className={isProfile ? "hidden lg:block" : undefined}>
       <Link
         aria-current={isActive ? "page" : undefined}
-        className={`group flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl border px-0.5 py-2 text-center text-[11px] font-semibold leading-tight tracking-[0.02em] transition-colors hover:bg-panel-raised hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal lg:min-h-0 lg:flex-row lg:justify-start lg:gap-3 lg:px-3 lg:py-3 lg:text-left lg:text-sm ${isActive ? "border-signal/40 bg-brand-soft text-signal" : "border-transparent text-muted"}`}
+        className={`group relative flex min-h-14 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border border-transparent px-0.5 py-2 text-center text-[11px] font-semibold leading-tight tracking-[0.02em] transition-colors hover:bg-panel-raised hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal lg:min-h-0 lg:flex-row lg:justify-start lg:gap-3 lg:px-3 lg:py-3 lg:text-left lg:text-sm ${isActive ? "text-signal lg:border-signal/40 lg:bg-brand-soft" : "text-muted"}`}
         href={item.href}
       >
         <Icon className="size-5 shrink-0 transition-transform group-hover:-translate-y-0.5" name={item.icon} />
         <span>{item.label}</span>
+        {isActive ? <span aria-hidden="true" className="absolute inset-x-1/4 bottom-1 h-0.5 rounded-full bg-signal shadow-sm lg:hidden" /> : null}
       </Link>
     </li>
   );
@@ -122,7 +123,7 @@ export function AppShell({ children, displayName, avatarPath = null }: AppShellP
 
       <nav
         aria-label="Navegación principal"
-        className="mobile-bottom-nav fixed inset-x-3 z-20 rounded-2xl border border-border/80 bg-panel/95 px-2 py-2 shadow-2xl shadow-black/30 backdrop-blur-xl lg:inset-y-0 lg:inset-x-auto lg:left-0 lg:right-auto lg:w-64 lg:rounded-none lg:border-r lg:border-t-0 lg:px-4 lg:py-6 lg:shadow-none"
+        className="mobile-bottom-nav fixed inset-x-3 z-20 border-t border-border/80 bg-background/90 px-1 py-1 shadow-lg shadow-black/15 backdrop-blur-lg lg:inset-y-0 lg:inset-x-auto lg:left-0 lg:right-auto lg:w-64 lg:rounded-none lg:border-r lg:border-t-0 lg:px-4 lg:py-6 lg:shadow-none"
       >
         <div className="relative mx-auto max-w-xl lg:flex lg:h-full lg:max-w-none lg:flex-col">
           <div className="hidden border-b border-border/80 px-3 pb-7 lg:block">

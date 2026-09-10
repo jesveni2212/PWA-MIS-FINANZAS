@@ -36,6 +36,13 @@ describe("NotificationPreferences", () => {
     expect(requestSubscription).not.toHaveBeenCalled();
   });
 
+  it("recognizes an existing push subscription when the browser permission is already granted", async () => {
+    permission.mockReturnValue("granted");
+    render(<NotificationPreferences />);
+    expect(await screen.findByRole("button", { name: "Desactivar notificaciones" })).toBeInTheDocument();
+    expect(screen.getByText("Activas", { selector: "strong" })).toBeInTheDocument();
+  });
+
   it("requests permission after the explicit activation click", async () => {
     render(<NotificationPreferences />);
     fireEvent.click(screen.getByRole("button", { name: "Activar notificaciones" }));

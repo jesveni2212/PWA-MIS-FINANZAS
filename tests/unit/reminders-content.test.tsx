@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RemindersContent } from "@/components/reminders/reminders-content";
 import type { ReminderWithOccurrence } from "@/lib/reminders/types";
 
-const { loadReminders, postponeReminderOccurrence, resolveReminderOccurrence } = vi.hoisted(() => ({ loadReminders: vi.fn(), postponeReminderOccurrence: vi.fn(), resolveReminderOccurrence: vi.fn() }));
-vi.mock("@/lib/reminders/repository", () => ({ loadReminders, postponeReminderOccurrence, resolveReminderOccurrence, createReminder: vi.fn(), updateReminder: vi.fn() }));
+const { deleteReminder, loadReminders, postponeReminderOccurrence, resolveReminderOccurrence } = vi.hoisted(() => ({ deleteReminder: vi.fn(), loadReminders: vi.fn(), postponeReminderOccurrence: vi.fn(), resolveReminderOccurrence: vi.fn() }));
+vi.mock("@/lib/reminders/repository", () => ({ deleteReminder, loadReminders, postponeReminderOccurrence, resolveReminderOccurrence, createReminder: vi.fn(), updateReminder: vi.fn() }));
 
 const pendingReminder: ReminderWithOccurrence = {
   reminder: { id: "reminder-1", name: "Luz", category: "Servicios", amount: 50000, currency: "PYG", recurrenceType: "monthly", recurrenceRule: { type: "monthly", day: 31 }, startDate: "2026-09-01", nextDueOn: "2026-09-30", notifyDaysBefore: 3, timezone: "America/Asuncion", active: true, createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z" },
@@ -16,6 +16,7 @@ beforeEach(() => {
   loadReminders.mockResolvedValue([pendingReminder]);
   resolveReminderOccurrence.mockResolvedValue(undefined);
   postponeReminderOccurrence.mockResolvedValue(undefined);
+  deleteReminder.mockResolvedValue(undefined);
 });
 afterEach(() => cleanup());
 
@@ -42,5 +43,14 @@ describe("RemindersContent", () => {
     fireEvent.change(screen.getByLabelText("Nueva fecha"), { target: { value: "2999-10-01" } });
     fireEvent.click(screen.getByRole("button", { name: "Posponer" }));
     await waitFor(() => expect(postponeReminderOccurrence).toHaveBeenCalledWith("occ-1", "2999-10-01"));
+  });
+
+  it("deletes a reminder permanently after confirmation", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<RemindersContent initialReminders={[pendingReminder]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar Luz" }));
+    await waitFor(() => expect(deleteReminder).toHaveBeenCalledWith("reminder-1"));
+    expect(screen.queryByText("Luz")).not.toBeInTheDocument();
+    vi.restoreAllMocks();
   });
 });

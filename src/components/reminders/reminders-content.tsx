@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 
 import { ReminderCard } from "@/components/reminders/reminder-card";
 import { ReminderForm } from "@/components/reminders/reminder-form";
-import { loadReminders, postponeReminderOccurrence, resolveReminderOccurrence } from "@/lib/reminders/repository";
+import { deleteReminder, loadReminders, postponeReminderOccurrence, resolveReminderOccurrence } from "@/lib/reminders/repository";
 import type { Reminder, ReminderOccurrenceStatus, ReminderWithOccurrence } from "@/lib/reminders/types";
 
 type RemindersContentProps = { initialReminders: ReminderWithOccurrence[] };
@@ -43,9 +43,14 @@ export function RemindersContent({ initialReminders }: RemindersContentProps) {
     try { await postponeReminderOccurrence(occurrenceId, nextDueOn); await refresh(); } catch (actionError) { setError(actionError instanceof Error ? actionError.message : "No pudimos posponer el recordatorio."); }
   }
 
+  async function remove(reminderId: string) {
+    setError("");
+    try { await deleteReminder(reminderId); setReminders((current) => current.filter((item) => item.reminder.id !== reminderId)); } catch (actionError) { setError(actionError instanceof Error ? actionError.message : "No pudimos eliminar el recordatorio."); }
+  }
+
   function group(title: string, items: ReminderWithOccurrence[]) {
     if (!items.length) return null;
-    return <section className="grid gap-3" aria-labelledby={`reminders-${title}`}><h2 className="font-serif text-2xl font-semibold" id={`reminders-${title}`}>{title}</h2>{items.map((item) => <ReminderCard key={item.reminder.id} onEdit={setEditing} onPostpone={postpone} onResolve={resolve} occurrence={item.occurrence} reminder={item.reminder} />)}</section>;
+    return <section className="grid gap-3" aria-labelledby={`reminders-${title}`}><h2 className="font-serif text-2xl font-semibold" id={`reminders-${title}`}>{title}</h2>{items.map((item) => <ReminderCard key={item.reminder.id} onDelete={remove} onEdit={setEditing} onPostpone={postpone} onResolve={resolve} occurrence={item.occurrence} reminder={item.reminder} />)}</section>;
   }
 
   return <div className="grid gap-8">
