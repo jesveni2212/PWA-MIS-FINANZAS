@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { PARAGUAYAN_INSTITUTIONS } from "@/lib/finance/institutions";
 import type { AccountType } from "@/lib/finance/types";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -23,10 +23,26 @@ export function AccountForm({ onCreated }: AccountFormProps) {
   const [openingValue, setOpeningValue] = useState("0");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false);
   const isCreditCard = accountType === "credit_card";
+
+  useEffect(() => {
+    const updateOnlineState = () => setIsOnline(navigator.onLine !== false);
+    window.addEventListener("online", updateOnlineState);
+    window.addEventListener("offline", updateOnlineState);
+    updateOnlineState();
+    return () => {
+      window.removeEventListener("online", updateOnlineState);
+      window.removeEventListener("offline", updateOnlineState);
+    };
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!isOnline) {
+      setMessage("Necesitás conexión para crear una cuenta");
+      return;
+    }
     const normalizedName = name.trim();
     const normalizedInstitution = (institution === "Otro" ? otherInstitution : institution).trim();
     const numericOpeningValue = Number(openingValue);
@@ -77,7 +93,8 @@ export function AccountForm({ onCreated }: AccountFormProps) {
       <label className="grid gap-2 text-sm font-semibold" htmlFor="account-currency">Moneda<select className="rounded-xl border border-border bg-background px-4 py-3" id="account-currency" onChange={(event) => setCurrency(event.target.value as "PYG" | "USD")} value={currency}><option value="PYG">Guaraníes (PYG)</option><option value="USD">Dólares (USD)</option></select></label>
       <label className="grid gap-2 text-sm font-semibold" htmlFor="account-opening-value">{isCreditCard ? "Deuda inicial" : "Saldo inicial"}<MoneyInput className="rounded-xl border border-border bg-background px-4 py-3" id="account-opening-value" min="0" onChange={setOpeningValue} step="0.01" value={openingValue} /></label>
     </div>
+    {!isOnline ? <p aria-live="polite" className="text-danger">Necesitás conexión para crear una cuenta</p> : null}
     {message ? <p aria-live="polite" className={message === "Cuenta creada." ? "text-signal" : "text-danger"}>{message}</p> : null}
-    <button className="w-fit rounded-xl bg-brand px-5 py-3 font-semibold text-brand-foreground disabled:cursor-not-allowed disabled:opacity-70" disabled={saving} type="submit">{saving ? "Guardando…" : "Crear cuenta"}</button>
+    <button className="w-fit rounded-xl bg-brand px-5 py-3 font-semibold text-brand-foreground disabled:cursor-not-allowed disabled:opacity-70" disabled={saving || !isOnline} type="submit">{saving ? "Guardando…" : "Crear cuenta"}</button>
   </form>;
 }

@@ -77,4 +77,34 @@ El proyecto puede desplegarse en Vercel conectado al repositorio de GitHub. En p
 
 ## Alcance actual
 
-La aplicación cubre la primera versión funcional de finanzas personales, grupos compartidos, invitaciones seguras, perfiles con avatar y experiencia PWA. Las integraciones OAuth, notificaciones y funciones financieras avanzadas pueden incorporarse en etapas posteriores.
+La aplicación cubre la primera versión funcional de finanzas personales, grupos compartidos, invitaciones seguras, perfiles con avatar, recordatorios recurrentes y experiencia PWA. Las integraciones OAuth y funciones financieras avanzadas pueden incorporarse en etapas posteriores.
+
+## Experiencia offline y medición
+
+Las cuentas y movimientos personales recientes se guardan en IndexedDB por usuario. Sin conexión se pueden consultar los datos guardados y registrar movimientos; la creación de cuentas, grupos, invitaciones y cambios de perfil requieren conexión. La cola conserva el orden y sincroniza cada movimiento con un identificador idempotente. Al cerrar sesión se elimina la caché financiera del usuario activo.
+
+El Service Worker solo almacena recursos públicos estáticos versionados; nunca guarda HTML personalizado ni respuestas de Supabase.
+
+Para medir la experiencia completa:
+
+```powershell
+corepack pnpm test:e2e
+corepack pnpm build
+```
+
+Compará antes y después el TTFB, el tiempo hasta ver el dashboard, la navegación entre rutas y los kilobytes de JavaScript transferidos en móvil. Los flujos autenticados E2E usan `E2E_TEST_EMAIL` y `E2E_TEST_PASSWORD`; si no están definidos, se omiten con una explicación clara.
+
+## Recordatorios y notificaciones
+
+Los recordatorios se crean desde `Recordatorios` y admiten repetición semanal, mensual, anual o personalizada. La notificación del navegador solo se solicita al pulsar `Activar` desde `Perfil`; si no se concede permiso, los recordatorios siguen visibles dentro de la aplicación.
+
+Para habilitar las notificaciones push en producción:
+
+```env
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:admin@tu-dominio.com
+REMINDER_SCHEDULER_SECRET=...
+```
+
+`NEXT_PUBLIC_VAPID_PUBLIC_KEY` debe estar disponible en Vercel y también en la función de Supabase. La clave privada VAPID y `REMINDER_SCHEDULER_SECRET` deben configurarse solo como secretos de Supabase. Desplegá `supabase/functions/send-reminder-notifications` y programá una llamada `POST` autenticada con ese secreto; la función evita duplicados y desactiva suscripciones vencidas.

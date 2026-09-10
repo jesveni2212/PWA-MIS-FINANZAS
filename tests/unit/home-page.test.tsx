@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getServerSessionData, loadPersonalLedgerServer, redirect } = vi.hoisted(() => ({
+const { getServerSessionData, loadPersonalLedgerServer, loadRemindersServer, redirect } = vi.hoisted(() => ({
   getServerSessionData: vi.fn(),
   loadPersonalLedgerServer: vi.fn(),
+  loadRemindersServer: vi.fn(),
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
   }),
@@ -10,12 +11,15 @@ const { getServerSessionData, loadPersonalLedgerServer, redirect } = vi.hoisted(
 
 vi.mock("@/lib/auth/server-session", () => ({ getServerSessionData }));
 vi.mock("@/lib/finance/personal-ledger-server", () => ({ loadPersonalLedgerServer }));
+vi.mock("@/lib/reminders/server", () => ({ loadRemindersServer }));
 vi.mock("next/navigation", () => ({ redirect }));
 
 describe("HomePage", () => {
   beforeEach(() => {
     getServerSessionData.mockReset();
     loadPersonalLedgerServer.mockReset();
+    loadRemindersServer.mockReset();
+    loadRemindersServer.mockResolvedValue([]);
     redirect.mockClear();
     vi.resetModules();
   });
@@ -42,5 +46,6 @@ describe("HomePage", () => {
     expect(element.props.initialLedger).toBe(initialLedger);
     expect(typeof element.props.initialLedgerUpdatedAt).toBe("string");
     expect(loadPersonalLedgerServer).toHaveBeenCalledWith(50);
+    expect(loadRemindersServer).toHaveBeenCalledTimes(1);
   });
 });

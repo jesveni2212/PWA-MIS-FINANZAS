@@ -88,6 +88,7 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(initialSnapshot.updatedAt);
   const [isSyncing, setIsSyncing] = useState(false);
   const [storageWarning, setStorageWarning] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const cacheWriteQueueRef = useRef(Promise.resolve());
 
   const showStorageWarning = useCallback((error: unknown) => {
@@ -100,6 +101,7 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
 
   const setPending = useCallback((nextPending: PendingTransaction[]) => {
     pendingRef.current = nextPending;
+    setPendingCount(nextPending.length);
     renderPending(baseLedgerRef.current, nextPending);
   }, [renderPending]);
 
@@ -237,10 +239,15 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
     const adoptedGeneration = snapshotGenerationRef.current;
     baseLedgerRef.current = initialLedger;
     latestLedgerByUser?.set(userId, { ledger: initialLedger, updatedAt: initialLedgerUpdatedAt });
-    renderPending(initialLedger);
-    setFreshness("server");
-    setLastUpdatedAt(initialLedgerUpdatedAt);
-    void persistCache(initialLedger, initialLedgerUpdatedAt, adoptedGeneration);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active || snapshotGenerationRef.current !== adoptedGeneration) return;
+      renderPending(initialLedger);
+      setFreshness("server");
+      setLastUpdatedAt(initialLedgerUpdatedAt);
+      void persistCache(initialLedger, initialLedgerUpdatedAt, adoptedGeneration);
+    });
+    return () => { active = false; };
   }, [initialLedger, initialLedgerUpdatedAt, persistCache, renderPending, userId]);
 
   useEffect(() => {
@@ -250,6 +257,7 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
       if (!active) return;
       const mergedPending = [...pendingRef.current, ...storedPending.filter((stored) => !pendingRef.current.some((current) => current.id === stored.id))];
       pendingRef.current = mergedPending;
+      setPendingCount(mergedPending.length);
       if (cache && newerThanServer(cache, initialLedgerUpdatedAt)) {
         baseLedgerRef.current = cache.ledger;
         latestLedgerByUser?.set(userId, { ledger: cache.ledger, updatedAt: cache.updatedAt });
@@ -293,12 +301,12 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
     ledger,
     freshness,
     lastUpdatedAt,
-    pendingCount: pendingRef.current.length,
+    pendingCount,
     isSyncing,
     storageWarning,
     refresh,
     recordTransaction,
-  }), [freshness, isSyncing, lastUpdatedAt, ledger, recordTransaction, refresh, storageWarning]);
+  }), [freshness, isSyncing, lastUpdatedAt, ledger, pendingCount, recordTransaction, refresh, storageWarning]);
 
   return <PersonalFinanceContext.Provider value={value}>
     {children}

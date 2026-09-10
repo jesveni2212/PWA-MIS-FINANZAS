@@ -6,7 +6,8 @@ function nullableText(value: string | null | undefined): string | null {
   return normalized || null;
 }
 
-export function applyPendingTransaction(ledger: PersonalLedger, draft: PersonalTransactionDraft, _pendingId: string): PersonalLedger {
+export function applyPendingTransaction(ledger: PersonalLedger, draft: PersonalTransactionDraft, pendingId: string): PersonalLedger {
+  void pendingId;
   const clientOperationId = draft.clientOperationId;
   if (!clientOperationId || ledger.transactions.some((transaction) => transaction.clientOperationId === clientOperationId || transaction.id === `pending:${clientOperationId}`)) {
     return ledger;

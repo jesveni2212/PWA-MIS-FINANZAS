@@ -5,6 +5,7 @@ export const privatePaths = [
   "/cuentas",
   "/movimientos",
   "/grupos",
+  "/recordatorios",
   "/perfil",
 ] as const;
 

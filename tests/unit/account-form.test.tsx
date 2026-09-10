@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountForm } from "@/components/accounts/account-form";
 import { createClient } from "@/lib/supabase/client";
 
@@ -7,12 +7,25 @@ vi.mock("@/lib/supabase/client", () => ({ createClient: vi.fn() }));
 
 const mockedCreateClient = vi.mocked(createClient);
 
+beforeEach(() => {
+  Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+});
+
 afterEach(() => {
   cleanup();
   mockedCreateClient.mockReset();
 });
 
 describe("AccountForm", () => {
+  it("keeps account creation online-only", async () => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    render(<AccountForm />);
+
+    expect(screen.getByRole("button", { name: "Crear cuenta" })).toBeDisabled();
+    expect(await screen.findByText("Necesitás conexión para crear una cuenta")).toBeInTheDocument();
+    expect(mockedCreateClient).not.toHaveBeenCalled();
+  });
+
   it("reveals the credit-card debt and custom institution fields", () => {
     render(<AccountForm />);
 

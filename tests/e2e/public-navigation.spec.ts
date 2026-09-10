@@ -13,7 +13,7 @@ test("las rutas públicas de acceso y registro son navegables", async ({ page })
   await expect(page).toHaveURL(/\/acceso$/);
 });
 
-for (const path of ["/perfil", "/movimientos", "/grupos"]) {
+for (const path of ["/cuentas", "/movimientos", "/grupos", "/recordatorios", "/perfil"]) {
   test(`${path} redirige usuarios anónimos al acceso`, async ({ page }) => {
     await page.goto(path);
 

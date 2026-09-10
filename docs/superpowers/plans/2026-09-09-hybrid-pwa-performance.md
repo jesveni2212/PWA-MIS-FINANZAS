@@ -194,6 +194,8 @@ git commit -m "feat: add grouped ledger reads and idempotent writes"
 - `PersonalFinanceProvider({ userId, initialLedger, children })` owns the client-side personal ledger store and exposes it to descendants.
 - `AppShell({ children, displayName })` receives the greeting data instead of calling Supabase from an effect.
 
+Task 2 establishes the server/provider boundary. Task 4 is the planned follow-up that migrates dashboard, accounts, and movements to consume this provider; the intermediate client loaders may remain until that task and are not the acceptance boundary for this task.
+
 - [ ] **Step 1: Write failing tests for server session and provider initialization**
 
 Test that `getServerSessionData` returns `null` without a user and returns the profile display name when the authenticated user exists. Test that `PersonalFinanceProvider` renders its `initialLedger` on the first client render and does not show a loading-only state.
@@ -256,7 +258,7 @@ type PersonalFinanceContextValue = {
 };
 ```
 
-Initialize the visible state from `initialLedger` synchronously. Keep a browser-only `Map<string, PersonalLedger>` keyed by `userId` to make a route revisit paint the latest in-memory snapshot before revalidation. Do not read `localStorage` for financial data.
+Initialize the visible state from `initialLedger` synchronously and never replace it with an older memory entry. Keep a browser-only `Map<string, PersonalLedger>` keyed by `userId` only as a store for later provider refreshes; Task 3 will add the IndexedDB cache and decide when a cached snapshot may replace the server snapshot. Do not read `localStorage` for financial data.
 
 Expose a strict `usePersonalFinance` hook that throws a developer-facing error when used outside the provider; expose a separate `useOptionalPersonalFinance` hook for `AppShell` status rendering on pages without the provider.
 

@@ -15,6 +15,7 @@ describe("auth path contracts", () => {
       "/cuentas",
       "/movimientos",
       "/grupos",
+      "/recordatorios",
       "/perfil",
     ]);
     expect(authPaths).toEqual([
@@ -43,6 +44,7 @@ describe("auth path contracts", () => {
     expect(isPrivatePath("/cuentas")).toBe(true);
     expect(isPrivatePath("/movimientos")).toBe(true);
     expect(isPrivatePath("/grupos")).toBe(true);
+    expect(isPrivatePath("/recordatorios")).toBe(true);
     expect(isPrivatePath("/perfil")).toBe(true);
     expect(isPrivatePath("/acceso")).toBe(false);
     expect(isPrivatePath("/registro")).toBe(false);

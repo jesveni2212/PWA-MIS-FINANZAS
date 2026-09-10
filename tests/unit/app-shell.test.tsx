@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "@/components/app-shell";
+import { PersonalFinanceProvider } from "@/components/finance/personal-finance-provider";
 import { MoneyValue } from "@/components/ui/money-value";
 import { createClient } from "@/lib/supabase/client";
 
@@ -58,6 +59,16 @@ describe("AppShell greeting", () => {
 });
 
 describe("AppShell", () => {
+  it("shows compact offline status when the personal store is unavailable", () => {
+    render(
+      <PersonalFinanceProvider initialLedger={{ accounts: [], transactions: [] }} initialLedgerUpdatedAt={null} userId="shell-status">
+        <AppShell displayName={null}><p>Contenido</p></AppShell>
+      </PersonalFinanceProvider>,
+    );
+
+    expect(screen.getAllByText("Sin conexión")).not.toHaveLength(0);
+  });
+
   it("exposes the ledger navigation and its content", () => {
     render(
       <AppShell displayName={null}>

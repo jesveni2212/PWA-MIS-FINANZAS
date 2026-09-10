@@ -1,17 +1,18 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { usePersonalFinance } from "@/components/finance/personal-finance-provider";
 import { PurchaseItemEditor } from "@/components/movements/purchase-item-editor";
 import { MoneyInput } from "@/components/ui/money-input";
-import { recordPersonalTransaction } from "@/lib/finance/personal-ledger";
 import type { OperationType, PersonalAccount, PersonalTransactionDraft, PurchaseItemDraft } from "@/lib/finance/types";
 
 const operationTypes: OperationType[] = ["income", "expense", "card_purchase", "transfer", "card_payment"];
 const labels: Record<OperationType, string> = { income: "Ingreso", expense: "Gasto", card_purchase: "Compra con tarjeta", transfer: "Transferencia", card_payment: "Pago de tarjeta" };
 const saveError = "No pudimos guardar la operación. Revisá los datos e intentá de nuevo.";
-type Props = { accounts: PersonalAccount[]; initialOperationType?: OperationType; onCreated?: () => void | Promise<void> };
+type Props = { accounts: PersonalAccount[]; initialOperationType?: OperationType };
 
-export function OperationForm({ accounts, initialOperationType, onCreated }: Props) {
+export function OperationForm({ accounts, initialOperationType }: Props) {
+  const { recordTransaction } = usePersonalFinance();
   const [operationType, setOperationType] = useState<OperationType>(initialOperationType && operationTypes.includes(initialOperationType) ? initialOperationType : "expense");
   const [source, setSource] = useState(""); const [destination, setDestination] = useState(""); const [amount, setAmount] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10)); const [category, setCategory] = useState(""); const [note, setNote] = useState(""); const [merchant, setMerchant] = useState("");
@@ -30,7 +31,7 @@ export function OperationForm({ accounts, initialOperationType, onCreated }: Pro
     if (!Number.isFinite(numericAmount) || numericAmount <= 0 || !date) { setMessage(saveError); return; }
     setSaving(true); setMessage("");
     const draft: PersonalTransactionDraft = { operationType, sourceAccountId: operationType === "income" ? null : source || null, destinationAccountId: operationType === "expense" || operationType === "card_purchase" ? null : destination || null, amount: numericAmount, occurredOn: date, category: categoryNeeded ? category.trim() || null : null, note: note.trim() || null, merchant: purchase ? merchant.trim() || null : null, ...(purchase ? { items } : {}) };
-    try { await recordPersonalTransaction(draft, accounts); setSource(""); setDestination(""); setAmount(""); setDate(new Date().toISOString().slice(0, 10)); setCategory(""); setNote(""); setMerchant(""); setItems([]); setMessage("Operación guardada."); await onCreated?.(); }
+    try { await recordTransaction(draft, accounts); setSource(""); setDestination(""); setAmount(""); setDate(new Date().toISOString().slice(0, 10)); setCategory(""); setNote(""); setMerchant(""); setItems([]); setMessage("Operación guardada."); }
     catch (error) { setMessage(error instanceof Error && error.message ? error.message : saveError); }
     finally { setSaving(false); }
   }

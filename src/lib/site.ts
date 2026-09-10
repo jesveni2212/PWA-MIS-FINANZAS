@@ -8,6 +8,7 @@ export const site = {
     { label: "Cuentas", href: "/cuentas", icon: "wallet" },
     { label: "Movimientos", href: "/movimientos", icon: "movement" },
     { label: "Grupos", href: "/grupos", icon: "group" },
+    { label: "Recordatorios", href: "/recordatorios", icon: "calendar" },
     { label: "Perfil", href: "/perfil", icon: "user" },
   ],
 } as const satisfies {

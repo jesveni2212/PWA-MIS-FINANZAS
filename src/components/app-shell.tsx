@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSyncExternalStore, type ReactNode } from "react";
 import { Icon } from "@/components/ui/icon";
+import { useOptionalPersonalFinance } from "@/components/finance/personal-finance-provider";
 import { getGreetingLabel } from "@/lib/auth/greeting";
 import { isNavigationItemActive } from "@/lib/navigation";
 import { site } from "@/lib/site";
@@ -39,6 +40,21 @@ export function useBalancesHidden() {
   );
 }
 
+function FinanceSyncStatus() {
+  const finance = useOptionalPersonalFinance();
+  if (!finance) return null;
+
+  const label = finance.isSyncing
+    ? "Sincronizando…"
+    : finance.freshness === "offline"
+      ? "Sin conexión"
+      : finance.pendingCount > 0
+        ? `${finance.pendingCount} movimientos pendientes`
+        : "Actualizado ahora";
+
+  return <p aria-live="polite" className="text-xs font-medium text-muted">{label}</p>;
+}
+
 export function AppShell({ children, displayName }: AppShellProps) {
   const greeting = getGreetingLabel(displayName);
   const balancesHidden = useBalancesHidden();
@@ -59,9 +75,10 @@ export function AppShell({ children, displayName }: AppShellProps) {
           <p className="shrink-0 font-serif text-xl font-semibold tracking-tight">{site.name}</p>
           <p className="min-w-0 flex-1 truncate text-right text-sm font-semibold text-text">{greeting}</p>
         </div>
+        <div className="mt-2 text-right"><FinanceSyncStatus /></div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-5 py-8 pb-32 sm:px-8 lg:px-12 lg:py-12 lg:pb-12">
+      <main className="mx-auto w-full max-w-6xl px-5 py-8 pb-44 sm:px-8 lg:px-12 lg:py-12 lg:pb-12">
         {children}
       </main>
 
@@ -73,9 +90,10 @@ export function AppShell({ children, displayName }: AppShellProps) {
           <div className="hidden border-b border-border/80 px-3 pb-7 lg:block">
             <p className="font-serif text-2xl font-semibold tracking-tight text-text">{site.name}</p>
             <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-muted">Libro personal</p>
+            <div className="mt-3"><FinanceSyncStatus /></div>
           </div>
 
-          <ul className="grid grid-cols-5 lg:mt-7 lg:block lg:space-y-1">
+          <ul className="grid grid-cols-3 grid-rows-2 lg:mt-7 lg:block lg:space-y-1">
             {site.navigation.map((item) => {
               const isActive = isNavigationItemActive(pathname, item.href);
               return (

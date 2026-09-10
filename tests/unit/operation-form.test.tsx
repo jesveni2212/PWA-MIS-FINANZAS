@@ -1,13 +1,11 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
 import { OperationForm } from "@/components/movements/operation-form";
-import { recordPersonalTransaction } from "@/lib/finance/personal-ledger";
 import type { PersonalAccount } from "@/lib/finance/types";
 
-vi.mock("@/lib/finance/personal-ledger", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/finance/personal-ledger")>("@/lib/finance/personal-ledger");
-  return { ...actual, recordPersonalTransaction: vi.fn() };
-});
+const { recordTransaction } = vi.hoisted(() => ({ recordTransaction: vi.fn() }));
+vi.mock("@/components/finance/personal-finance-provider", () => ({ usePersonalFinance: () => ({ recordTransaction }) }));
 
 const accounts: PersonalAccount[] = [
   { id: "bank-1", spaceId: "space-1", accountType: "bank", institution: "Banco", name: "Cuenta corriente", currency: "PYG", currentBalance: 1000000 },
@@ -15,7 +13,7 @@ const accounts: PersonalAccount[] = [
   { id: "credit-1", spaceId: "space-1", accountType: "credit_card", institution: "Banco", name: "Visa", currency: "PYG", currentBalance: 0 },
 ];
 
-afterEach(() => { cleanup(); vi.mocked(recordPersonalTransaction).mockReset(); });
+afterEach(() => { cleanup(); recordTransaction.mockReset(); });
 
 describe("OperationForm", () => {
   it("shows only the fields required by card payment", () => {
@@ -25,19 +23,19 @@ describe("OperationForm", () => {
     expect(screen.queryByLabelText("Categoría")).not.toBeInTheDocument();
   });
 
-  it("normalizes and submits a card purchase once", async () => {
-    vi.mocked(recordPersonalTransaction).mockResolvedValue("transaction-1");
+  it("normalizes and sends a card purchase through the shared store once", async () => {
+    recordTransaction.mockResolvedValue(undefined);
     render(<OperationForm accounts={accounts} initialOperationType="card_purchase" />);
     fireEvent.change(screen.getByLabelText("Tarjeta de crédito"), { target: { value: "credit-1" } });
     fireEvent.change(screen.getByLabelText("Importe"), { target: { value: "150000,25" } });
     fireEvent.change(screen.getByLabelText("Categoría"), { target: { value: "  Comida " } });
     fireEvent.submit(screen.getByRole("button", { name: "Guardar operación" }).closest("form")!);
-    await waitFor(() => expect(recordPersonalTransaction).toHaveBeenCalledTimes(1));
-    expect(recordPersonalTransaction).toHaveBeenCalledWith(expect.objectContaining({ operationType: "card_purchase", amount: 150000.25, category: "Comida" }), accounts);
+    await waitFor(() => expect(recordTransaction).toHaveBeenCalledTimes(1));
+    expect(recordTransaction).toHaveBeenCalledWith(expect.objectContaining({ operationType: "card_purchase", amount: 150000.25, category: "Comida" }), accounts);
   });
 
-  it("keeps the draft after an RPC error", async () => {
-    vi.mocked(recordPersonalTransaction).mockRejectedValue(new Error("No pudimos guardar la operación."));
+  it("keeps the draft after a store error", async () => {
+    recordTransaction.mockRejectedValue(new Error("No pudimos guardar la operación."));
     render(<OperationForm accounts={accounts} initialOperationType="expense" />);
     fireEvent.change(screen.getByLabelText("Importe"), { target: { value: "50000" } });
     fireEvent.change(screen.getByLabelText("Categoría"), { target: { value: "Comida" } });

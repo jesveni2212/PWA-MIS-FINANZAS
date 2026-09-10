@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/app-shell";
 import { ProfileForm } from "@/components/profile/profile-form";
+import { NotificationPreferences } from "@/components/profile/notification-preferences";
 import { getServerSessionData } from "@/lib/auth/server-session";
 
 export default async function PerfilPage() {
@@ -15,7 +16,7 @@ export default async function PerfilPage() {
         <p className="mt-5 max-w-xl text-base leading-7 text-muted sm:text-lg">
           Mantené actualizado el nombre con el que te reconocemos.
         </p>
-        <div className="mt-10"><ProfileForm /></div>
+        <div className="mt-10"><ProfileForm /><NotificationPreferences /></div>
       </section>
     </AppShell>
   );
