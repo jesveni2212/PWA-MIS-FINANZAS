@@ -277,10 +277,14 @@ declare
 begin
   if v_user_id is null then raise exception using errcode = '42501', message = 'Authentication is required'; end if;
   if p_status not in ('paid', 'omitted') then raise exception using errcode = '22023', message = 'Invalid occurrence status'; end if;
-  select o, r into v_occurrence, v_reminder
+  select o.* into v_occurrence
     from public.financial_reminder_occurrences o
     join public.financial_reminders r on r.id = o.reminder_id
     where o.id = p_occurrence_id and r.created_by = v_user_id;
+  if not found then raise exception using errcode = '42501', message = 'Occurrence ownership is required'; end if;
+  select r.* into v_reminder
+    from public.financial_reminders r
+    where r.id = v_occurrence.reminder_id and r.created_by = v_user_id;
   if not found then raise exception using errcode = '42501', message = 'Occurrence ownership is required'; end if;
   if v_occurrence.status <> 'pending' then
     select id into v_next_id from public.financial_reminder_occurrences where reminder_id = v_reminder.id and status = 'pending' and due_on > v_occurrence.due_on order by due_on limit 1;
