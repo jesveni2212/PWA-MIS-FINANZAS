@@ -88,6 +88,7 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(initialSnapshot.updatedAt);
   const [isSyncing, setIsSyncing] = useState(false);
   const [storageWarning, setStorageWarning] = useState(false);
+  const cacheWriteQueueRef = useRef(Promise.resolve());
 
   const showStorageWarning = useCallback((error: unknown) => {
     if (error instanceof OfflineStorageUnavailableError) setStorageWarning(true);
@@ -102,27 +103,38 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
     renderPending(baseLedgerRef.current, nextPending);
   }, [renderPending]);
 
+  const persistCache = useCallback((nextLedger: PersonalLedger, updatedAt: string, generation: number) => {
+    const write = cacheWriteQueueRef.current.then(async () => {
+      if (snapshotGenerationRef.current !== generation) return;
+      try {
+        await writeLedgerCache(userId, nextLedger, updatedAt);
+      } catch (error) {
+        showStorageWarning(error);
+      }
+    });
+    cacheWriteQueueRef.current = write.catch(() => undefined);
+    return write;
+  }, [showStorageWarning, userId]);
+
   const refresh = useCallback(async () => {
     const refreshGeneration = snapshotGenerationRef.current;
     setIsSyncing(true);
     try {
       const nextLedger = await loadPersonalLedger();
       if (snapshotGenerationRef.current !== refreshGeneration) return;
+      const acceptedGeneration = refreshGeneration + 1;
+      snapshotGenerationRef.current = acceptedGeneration;
       const updatedAt = new Date().toISOString();
       baseLedgerRef.current = nextLedger;
       latestLedgerByUser?.set(userId, { ledger: nextLedger, updatedAt });
       renderPending(nextLedger);
       setFreshness("server");
       setLastUpdatedAt(updatedAt);
-      try {
-        await writeLedgerCache(userId, nextLedger, updatedAt);
-      } catch (error) {
-        showStorageWarning(error);
-      }
+      await persistCache(nextLedger, updatedAt, acceptedGeneration);
     } finally {
       setIsSyncing(false);
     }
-  }, [renderPending, showStorageWarning, userId]);
+  }, [persistCache, renderPending, userId]);
 
   const synchronize = useCallback((): Promise<void> => {
     if (syncPromiseRef.current) return syncPromiseRef.current;
@@ -222,12 +234,14 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
     const newerMemorySnapshot = latestLedgerByUser?.get(userId);
     if (newerMemorySnapshot && newerMemorySnapshot.updatedAt > initialLedgerUpdatedAt) return;
 
+    const adoptedGeneration = snapshotGenerationRef.current;
     baseLedgerRef.current = initialLedger;
     latestLedgerByUser?.set(userId, { ledger: initialLedger, updatedAt: initialLedgerUpdatedAt });
     renderPending(initialLedger);
     setFreshness("server");
     setLastUpdatedAt(initialLedgerUpdatedAt);
-  }, [initialLedger, initialLedgerUpdatedAt, renderPending, userId]);
+    void persistCache(initialLedger, initialLedgerUpdatedAt, adoptedGeneration);
+  }, [initialLedger, initialLedgerUpdatedAt, persistCache, renderPending, userId]);
 
   useEffect(() => {
     let active = true;
@@ -245,11 +259,7 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
       } else {
         renderPending(baseLedgerRef.current, mergedPending);
         if (initialLedgerUpdatedAt !== null) {
-          try {
-            await writeLedgerCache(userId, baseLedgerRef.current, initialLedgerUpdatedAt);
-          } catch (error) {
-            showStorageWarning(error);
-          }
+          await persistCache(baseLedgerRef.current, initialLedgerUpdatedAt, snapshotGenerationRef.current);
         }
       }
     };
@@ -277,7 +287,7 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
       window.removeEventListener("offline", onOffline);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [initialLedgerUpdatedAt, refresh, renderPending, showStorageWarning, synchronize, userId]);
+  }, [initialLedgerUpdatedAt, persistCache, refresh, renderPending, showStorageWarning, synchronize, userId]);
 
   const value = useMemo<PersonalFinanceContextValue>(() => ({
     ledger,

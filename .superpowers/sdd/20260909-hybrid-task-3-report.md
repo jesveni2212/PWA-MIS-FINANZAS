@@ -293,3 +293,28 @@ git diff --check
 ```
 
 Result: both passed (exit code 0). Vitest retained the pre-existing Vite CommonJS/ESM configuration warning and JSDOM logged `Not implemented: navigation to another Document` after the successful logout redirect; neither affected assertions or command status. This change does not alter Task 4, reminders, or the pre-existing browser auth-storage behavior.
+
+## Final fix: serialize stale refresh cache writes
+
+**Status:** complete.
+
+### Fix details
+
+Refresh results now advance the snapshot generation when accepted, and cache writes are serialized per provider. A cache write queued by an older refresh is skipped when a newer server snapshot has been adopted; if it already started, the newer snapshot is queued behind it so the final persisted record cannot remain stale. The provider regression suite now covers a deferred cache write during a same-user server refresh.
+
+### Validation
+
+```powershell
+.\node_modules\.bin\vitest.cmd run tests/unit/personal-finance-provider.test.tsx
+```
+
+```text
+Test Files  1 passed (1)
+     Tests  11 passed (11)
+```
+
+```powershell
+corepack pnpm typecheck
+```
+
+Result: passed. The known Vite ESM/CommonJS configuration warning remains non-blocking.

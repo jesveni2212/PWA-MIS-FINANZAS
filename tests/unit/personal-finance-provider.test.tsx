@@ -247,6 +247,45 @@ describe("PersonalFinanceProvider", () => {
     );
   });
 
+  it("serializes cache writes when a newer server snapshot arrives during refresh persistence", async () => {
+    let releaseOldCache!: () => void;
+    const writes: Array<{ ledger: typeof initialLedger; updatedAt: string }> = [];
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    listPendingTransactions.mockImplementationOnce(() => new Promise(() => undefined));
+    const staleRefreshLedger = { ...initialLedger, accounts: [{ ...initialLedger.accounts[0]!, name: "Respuesta vieja" }] };
+    const newerLedger = { ...initialLedger, accounts: [{ ...initialLedger.accounts[0]!, name: "Servidor vigente" }] };
+    loadPersonalLedger.mockResolvedValue(staleRefreshLedger);
+    writeLedgerCache.mockImplementation((_userId, ledger, updatedAt) => {
+      writes.push({ ledger, updatedAt });
+      if (writes.length === 1) return new Promise<void>((resolve) => { releaseOldCache = resolve; });
+      return Promise.resolve();
+    });
+
+    const view = render(
+      <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt={null} userId="user-refresh-cache-race">
+        <RefreshableLedgerReader />
+      </PersonalFinanceProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar" }));
+    await waitFor(() => expect(screen.getByText("Respuesta vieja")).toBeInTheDocument());
+    await waitFor(() => expect(writes).toHaveLength(1));
+
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    view.rerender(
+      <PersonalFinanceProvider initialLedger={newerLedger} initialLedgerUpdatedAt="2999-09-09T00:01:00.000Z" userId="user-refresh-cache-race">
+        <LedgerReader />
+      </PersonalFinanceProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Servidor vigente")).toBeInTheDocument());
+    expect(writes).toHaveLength(1);
+
+    releaseOldCache();
+    await waitFor(() => expect(writes.length).toBeGreaterThan(1));
+    expect(writes.slice(1).every(({ ledger, updatedAt }) =>
+      ledger.accounts[0]?.name === "Servidor vigente" && updatedAt === "2999-09-09T00:01:00.000Z",
+    )).toBe(true);
+  });
+
   it("resets visible ledger and pending state when the active user changes", async () => {
     loadPersonalLedger.mockImplementation(() => new Promise(() => undefined));
     Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
