@@ -57,7 +57,15 @@ Las migraciones se encuentran en `supabase/migrations/`. Para aplicar las pendie
 corepack pnpm exec supabase db push
 ```
 
-Las políticas de seguridad y pruebas SQL están en `supabase/tests/`.
+Las políticas de seguridad y pruebas SQL están en `supabase/tests/`. La migración de beneficios de tarjetas debe desplegarse por separado en cada proyecto de Supabase; publicar la aplicación no la aplica automáticamente.
+
+## Beneficios de tarjetas
+
+La primera versión usa promociones cargadas manualmente por cada usuario. Los enlaces oficiales se guardan como referencias de fuente para consulta y no se raspan ni se consultan automáticamente durante la ejecución.
+
+El tope de reintegro se deriva del tope de compras y el porcentaje configurados, por lo que no se ingresa como un segundo valor. Los reintegros estimados son informativos: no crean aplicaciones locales ni aumentan el saldo o el patrimonio de una cuenta hasta que el servidor confirme una compra compatible.
+
+Las futuras conexiones con bancos, comercios u otras fuentes deberán normalizar sus datos al mismo modelo de beneficios antes de integrarse; los conectores y la normalización automática quedan fuera de esta primera versión.
 
 ## Verificación
 
@@ -70,6 +78,16 @@ corepack pnpm test:e2e
 ```
 
 La suite E2E se ejecuta en desktop, iPhone y Android.
+
+Para verificar específicamente beneficios y comportamiento offline:
+
+```powershell
+corepack pnpm exec vitest run tests/unit/benefits-matching.test.ts tests/unit/benefit-form.test.tsx tests/unit/operation-form.test.tsx tests/unit/offline-storage.test.ts
+corepack pnpm exec supabase test db supabase/tests/personal_benefits_security.sql
+corepack pnpm test:e2e tests/e2e/benefits.spec.ts tests/e2e/offline-finance.spec.ts
+```
+
+Los flujos autenticados E2E se omiten si faltan las credenciales de prueba o la configuración de Supabase.
 
 ## Despliegue
 

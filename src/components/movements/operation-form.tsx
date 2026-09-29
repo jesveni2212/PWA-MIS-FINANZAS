@@ -18,6 +18,7 @@ type Props = { accounts: PersonalAccount[]; initialOperationType?: OperationType
 type BenefitEvaluation = {
   benefit: PersonalBenefit | null;
   preview: BenefitPreview | null;
+  rulesAreCached: boolean;
 };
 
 function isValidDate(value: string): boolean {
@@ -26,7 +27,7 @@ function isValidDate(value: string): boolean {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
-function BenefitPreviewResult({ benefit, preview }: { benefit: PersonalBenefit; preview: BenefitPreview }) {
+function BenefitPreviewResult({ benefit, preview, rulesAreCached }: { benefit: PersonalBenefit; preview: BenefitPreview; rulesAreCached: boolean }) {
   const accumulatedPurchase = benefit.usedPurchase + preview.eligiblePurchase;
   const accumulatedRebate = benefit.usedRebate + preview.estimatedRebate;
 
@@ -62,6 +63,10 @@ function BenefitPreviewResult({ benefit, preview }: { benefit: PersonalBenefit; 
           <dd className="mt-1 font-semibold"><MoneyValue amount={preview.rebateRemaining} currency={benefit.currency} /></dd>
         </div>
       </dl>
+      <p className="text-xs leading-5 text-muted" role="note">
+        {rulesAreCached ? "Cálculo con datos guardados. " : ""}
+        El reintegro es informativo y no se acredita al saldo de la cuenta.
+      </p>
     </div>
   );
 }
@@ -90,7 +95,8 @@ export function OperationForm({ accounts, initialOperationType }: Props) {
   }, [amount, date, merchant, operationType, selectedCard]);
   const benefitEvaluation = useMemo<BenefitEvaluation | null>(() => {
     if (!personalBenefits || personalBenefits.error || !benefitInput) return null;
-    return { benefit: findMatchingBenefit(personalBenefits.benefits, benefitInput), preview: personalBenefits.preview(benefitInput) };
+    const benefit = personalBenefits.previewBenefit?.(benefitInput) ?? findMatchingBenefit(personalBenefits.benefits, benefitInput);
+    return { benefit, preview: personalBenefits.preview(benefitInput), rulesAreCached: personalBenefits.freshness !== "server" };
   }, [benefitInput, personalBenefits]);
 
   const select = (label: string, value: string, change: (value: string) => void, options: PersonalAccount[]) => <label className="grid gap-2 text-sm font-semibold" htmlFor={`operation-${label}`}>
@@ -129,7 +135,7 @@ export function OperationForm({ accounts, initialOperationType }: Props) {
     {categoryNeeded && <label className="grid gap-2 text-sm font-semibold" htmlFor="operation-category">Categoría<input className="rounded-xl border border-border bg-surface px-4 py-3" id="operation-category" value={category} onChange={(event) => setCategory(event.target.value)} /></label>}
     <label className="grid gap-2 text-sm font-semibold" htmlFor="operation-date">Fecha<input className="rounded-xl border border-border bg-surface px-4 py-3" id="operation-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
     <label className="grid gap-2 text-sm font-semibold" htmlFor="operation-note">Nota <span className="font-normal text-muted">(opcional)</span><textarea className="min-h-24 rounded-xl border border-border bg-surface px-4 py-3" id="operation-note" value={note} onChange={(event) => setNote(event.target.value)} /></label>
-    {purchase && <><label className="grid gap-2 text-sm font-semibold" htmlFor="operation-merchant">Comercio <span className="font-normal text-muted">(opcional)</span><input className="rounded-xl border border-border bg-surface px-4 py-3" id="operation-merchant" value={merchant} onChange={(event) => setMerchant(event.target.value)} /></label>{benefitEvaluation ? benefitEvaluation.benefit && benefitEvaluation.preview ? <BenefitPreviewResult benefit={benefitEvaluation.benefit} preview={benefitEvaluation.preview} /> : <BenefitNoMatch /> : null}<PurchaseItemEditor amount={Number.isFinite(Number(amount)) ? Number(amount) : 0} items={items} onChange={setItems} /></>}
+    {purchase && <><label className="grid gap-2 text-sm font-semibold" htmlFor="operation-merchant">Comercio <span className="font-normal text-muted">(opcional)</span><input className="rounded-xl border border-border bg-surface px-4 py-3" id="operation-merchant" value={merchant} onChange={(event) => setMerchant(event.target.value)} /></label>{benefitEvaluation ? benefitEvaluation.benefit && benefitEvaluation.preview ? <BenefitPreviewResult benefit={benefitEvaluation.benefit} preview={benefitEvaluation.preview} rulesAreCached={benefitEvaluation.rulesAreCached} /> : <BenefitNoMatch /> : null}<PurchaseItemEditor amount={Number.isFinite(Number(amount)) ? Number(amount) : 0} items={items} onChange={setItems} /></>}
     {message && <p aria-live="polite">{message}</p>}
     {benefitsStale ? <p className="text-sm text-muted" role="status">La operación se guardó, pero el resumen de beneficios puede estar desactualizado.</p> : null}
     <button className="w-fit rounded-xl bg-brand px-5 py-3 font-semibold text-brand-foreground disabled:cursor-not-allowed disabled:opacity-70" disabled={saving} type="submit">{saving ? "Guardando…" : "Guardar operación"}</button>

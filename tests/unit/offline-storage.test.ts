@@ -31,8 +31,12 @@ const repository = vi.hoisted(() => ({
   loadPersonalBenefits: vi.fn(), createPersonalBenefit: vi.fn(), updatePersonalBenefit: vi.fn(),
   duplicatePersonalBenefit: vi.fn(), disablePersonalBenefit: vi.fn(),
 }));
+const finance = vi.hoisted(() => ({ context: null as { ledger: PersonalLedger } | null }));
 vi.mock("@/lib/benefits/repository", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/benefits/repository")>(), ...repository,
+}));
+vi.mock("@/components/finance/personal-finance-provider", () => ({
+  useOptionalPersonalFinance: () => finance.context,
 }));
 
 afterEach(() => {
@@ -40,6 +44,7 @@ afterEach(() => {
   vi.useRealTimers();
   resetOfflineStorageAdapterForTests();
   vi.unstubAllGlobals();
+  finance.context = null;
 });
 
 function adapter(): OfflineStorageAdapter & { version: number } {
@@ -206,6 +211,39 @@ describe("benefits provider/cache boundary", () => {
       .toEqual({ eligiblePurchase: 100, estimatedRebate: 25, purchaseRemaining: 700, rebateRemaining: 175 });
     expect(Object.values(repository).map((mock) => mock.mock.calls.length)).toEqual(calls);
     expect((await readBenefitsCache("user-a", "2026-09-01"))?.benefits).toEqual([benefit]);
+  });
+
+  it("projects pending card purchases into previews without creating local applications", async () => {
+    finance.context = {
+      ledger: {
+        accounts: [],
+        transactions: [{
+          id: "pending:purchase-1",
+          clientOperationId: "purchase-1",
+          syncStatus: "pending",
+          operationType: "card_purchase",
+          sourceAccountId: "card-1",
+          destinationAccountId: null,
+          amount: 300,
+          currency: "PYG",
+          occurredOn: "2026-09-15",
+          category: "Comida",
+          note: null,
+          merchant: "Super",
+          items: [],
+        }],
+      },
+    };
+    render(tree("user-a", [benefit]));
+    await act(async () => undefined);
+
+    const input = { accountId: "card-1", merchant: "Super", amount: 100, occurredOn: "2026-09-15", currency: "PYG" };
+    expect(context.previewBenefit(input)).toMatchObject({ usedPurchase: 500, usedRebate: 125 });
+    expect(context.preview(input)).toEqual({ eligiblePurchase: 100, estimatedRebate: 25, purchaseRemaining: 400, rebateRemaining: 100 });
+    expect(repository.createPersonalBenefit).not.toHaveBeenCalled();
+    expect(repository.updatePersonalBenefit).not.toHaveBeenCalled();
+    expect(repository.duplicatePersonalBenefit).not.toHaveBeenCalled();
+    expect(repository.disablePersonalBenefit).not.toHaveBeenCalled();
   });
 
   it("keeps weekly snapshots readable but rejects duplication before the repository", async () => {

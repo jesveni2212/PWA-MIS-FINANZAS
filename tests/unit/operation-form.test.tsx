@@ -109,6 +109,21 @@ describe("OperationForm", () => {
     expect(benefitsState.preview).toHaveBeenLastCalledWith({ accountId: "credit-1", merchant: "Biggie", amount: 85000, occurredOn: "2026-09-15", currency: "PYG" });
   });
 
+  it("labels cached previews and keeps the estimated rebate informational", async () => {
+    enableBenefits();
+    benefitsState.context = { ...benefitsState.context, freshness: "cached" };
+    benefitsState.preview.mockReturnValue({ eligiblePurchase: 85000, estimatedRebate: 17000, purchaseRemaining: 515000, rebateRemaining: 103000 });
+    render(<OperationForm accounts={accounts} initialOperationType="card_purchase" />);
+    fireEvent.change(screen.getByLabelText("Tarjeta de crédito"), { target: { value: "credit-1" } });
+    fireEvent.change(screen.getByLabelText("Importe"), { target: { value: "85000" } });
+    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2026-09-15" } });
+    fireEvent.change(screen.getByLabelText(/Comercio/), { target: { value: "Biggie" } });
+
+    const note = await screen.findByRole("note");
+    expect(note).toHaveTextContent("Cálculo con datos guardados");
+    expect(note).toHaveTextContent("no se acredita al saldo");
+  });
+
   it("shows a neutral no-match result and saves the normal purchase draft", async () => {
     enableBenefits();
     recordTransaction.mockResolvedValue(undefined);

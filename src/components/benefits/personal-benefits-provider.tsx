@@ -6,6 +6,8 @@ import { PersonalBenefitsLoadError, personalBenefitsLoadError } from "@/lib/bene
 import { calculateBenefitPreview, findMatchingBenefit } from "@/lib/benefits/matching";
 import { createPersonalBenefit, disablePersonalBenefit, duplicatePersonalBenefit, loadPersonalBenefits, personalBenefitSaveError, updatePersonalBenefit } from "@/lib/benefits/repository";
 import type { BenefitMatchInput, BenefitPreview, PersonalBenefit, PersonalBenefitDraft } from "@/lib/benefits/types";
+import { useOptionalPersonalFinance } from "@/components/finance/personal-finance-provider";
+import type { PersonalTransaction } from "@/lib/finance/types";
 import { readBenefitsCache, writeBenefitsCache } from "@/lib/offline/storage";
 
 export type PersonalBenefitsContextValue = {
@@ -18,6 +20,7 @@ export type PersonalBenefitsContextValue = {
   updateBenefit: (id: string, draft: PersonalBenefitDraft) => Promise<void>;
   duplicateBenefit: (id: string, validFrom: string, validUntil: string) => Promise<void>;
   disableBenefit: (id: string) => Promise<void>;
+  previewBenefit: (input: BenefitMatchInput) => PersonalBenefit | null;
   preview: (input: BenefitMatchInput) => BenefitPreview | null;
 };
 
@@ -42,11 +45,53 @@ function online(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine !== false;
 }
 
+function pendingCardPurchaseInputs(transactions: PersonalTransaction[]): BenefitMatchInput[] {
+  return transactions
+    .filter((transaction): transaction is PersonalTransaction & {
+      sourceAccountId: string;
+      merchant: string;
+      currency: string;
+    } => transaction.syncStatus === "pending"
+      && transaction.operationType === "card_purchase"
+      && Boolean(transaction.sourceAccountId)
+      && Boolean(transaction.merchant?.trim())
+      && Boolean(transaction.currency))
+    .slice()
+    .reverse()
+    .map((transaction) => ({
+      accountId: transaction.sourceAccountId,
+      merchant: transaction.merchant,
+      amount: transaction.amount,
+      occurredOn: transaction.occurredOn,
+      currency: transaction.currency,
+    }));
+}
+
+function projectPendingPurchases(
+  benefits: PersonalBenefit[],
+  pendingPurchases: BenefitMatchInput[],
+  input: BenefitMatchInput,
+): PersonalBenefit | null {
+  const match = findMatchingBenefit(benefits, input);
+  if (!match) return null;
+
+  return pendingPurchases.reduce((projected, pendingInput) => {
+    if (findMatchingBenefit([match], pendingInput)?.id !== match.id) return projected;
+    const pendingPreview = calculateBenefitPreview(projected, pendingInput);
+    return {
+      ...projected,
+      usedPurchase: projected.usedPurchase + pendingPreview.eligiblePurchase,
+      usedRebate: projected.usedRebate + pendingPreview.estimatedRebate,
+    };
+  }, match);
+}
+
 export function PersonalBenefitsProvider({ periodStart, ...props }: PersonalBenefitsProviderProps) {
   return <PersonalBenefitsProviderForUser key={`${props.userId}:${periodStart ?? "current"}`} {...props} periodStart={periodStart} />;
 }
 
 function PersonalBenefitsProviderForUser({ userId, initialBenefits, initialError, periodStart, children }: PersonalBenefitsProviderProps) {
+  const personalFinance = useOptionalPersonalFinance();
   const [initialPeriod] = useState(() => periodStart ?? currentPeriodStart());
   const [state, setState] = useState<BenefitsState>(() => ({
     benefits: initialBenefits ?? [],
@@ -147,7 +192,7 @@ function PersonalBenefitsProviderForUser({ userId, initialBenefits, initialError
       // snapshot as a later automatic month when hydration runs again.
       if (initialBenefits !== null && activePeriodRef.current === initialPeriod) {
         hasSnapshotRef.current = true;
-        setState({ benefits: initialBenefits, freshness: "server", error: initialError ? personalBenefitsLoadError : null, isLoading: false });
+        setState({ benefits: initialBenefits, freshness: online() ? "server" : "offline", error: initialError ? personalBenefitsLoadError : null, isLoading: false });
         await persistCache(initialBenefits, generation, initialPeriod);
       } else {
         await restoreCache(generation, activePeriodRef.current);
@@ -175,14 +220,21 @@ function PersonalBenefitsProviderForUser({ userId, initialBenefits, initialError
     };
   }, [initialBenefits, initialError, initialPeriod, persistCache, refresh, restoreCache]);
 
+  const pendingPurchases = useMemo(
+    () => pendingCardPurchaseInputs(personalFinance?.ledger.transactions ?? []),
+    [personalFinance?.ledger.transactions],
+  );
+  const previewBenefit = useCallback((input: BenefitMatchInput) => {
+    return projectPendingPurchases(state.benefits, pendingPurchases, input);
+  }, [pendingPurchases, state.benefits]);
   const preview = useCallback((input: BenefitMatchInput) => {
-    const match = findMatchingBenefit(state.benefits, input);
+    const match = previewBenefit(input);
     return match ? calculateBenefitPreview(match, input) : null;
-  }, [state.benefits]);
+  }, [previewBenefit]);
 
   const value = useMemo<PersonalBenefitsContextValue>(() => ({
-    ...state, refresh, createBenefit, updateBenefit, duplicateBenefit, disableBenefit, preview,
-  }), [state, refresh, createBenefit, updateBenefit, duplicateBenefit, disableBenefit, preview]);
+    ...state, refresh, createBenefit, updateBenefit, duplicateBenefit, disableBenefit, previewBenefit, preview,
+  }), [state, refresh, createBenefit, updateBenefit, duplicateBenefit, disableBenefit, previewBenefit, preview]);
 
   return <PersonalBenefitsContext.Provider value={value}>{children}</PersonalBenefitsContext.Provider>;
 }
