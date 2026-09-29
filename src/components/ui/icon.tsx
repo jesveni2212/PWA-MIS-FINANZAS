@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
 
-export const iconNames = ["home", "wallet", "movement", "group", "calendar", "user", "eye", "eye-off"] as const;
+export const iconNames = ["home", "wallet", "movement", "discount", "group", "calendar", "user", "eye", "eye-off"] as const;
 
 export type IconName = (typeof iconNames)[number];
 
@@ -13,6 +13,7 @@ const paths: Record<IconName, ReactNode> = {
   home: <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10Z" />,
   wallet: <><path d="M4 7h15a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3h12" /><path d="M16 14h5" /></>,
   movement: <><path d="M7 4 3 8l4 4" /><path d="M3 8h12a4 4 0 0 1 4 4v1" /><path d="m17 20 4-4-4-4" /><path d="M21 16H9a4 4 0 0 1-4-4v-1" /></>,
+  discount: <><path d="m7 17 10-10" /><circle cx="7" cy="7" r="2" /><circle cx="17" cy="17" r="2" /></>,
   group: <><circle cx="9" cy="8" r="3" /><path d="M3 20c.6-3.4 2.6-5 6-5s5.4 1.6 6 5" /><path d="M17 4a3 3 0 0 1 0 6" /><path d="M18 15c1.8.7 2.8 2.3 3 5" /></>,
   calendar: <><rect x="3" y="4.5" width="18" height="17" rx="2" /><path d="M16 2.5v4M8 2.5v4M3 9.5h18" /><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></>,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c.8-4.3 3.4-6.5 8-6.5s7.2 2.2 8 6.5" /></>,

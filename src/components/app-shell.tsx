@@ -132,7 +132,7 @@ export function AppShell({ children, displayName, avatarPath = null }: AppShellP
             <div className="mt-3"><FinanceSyncStatus /></div>
           </div>
 
-          <ul className="grid grid-cols-5 gap-1 lg:mt-7 lg:block lg:space-y-1">
+          <ul className="grid grid-cols-4 gap-1 lg:mt-7 lg:block lg:space-y-1">
             {site.navigation.map((item) => <NavigationLink item={item} key={item.href} pathname={pathname} />)}
           </ul>
 

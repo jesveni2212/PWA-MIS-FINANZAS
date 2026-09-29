@@ -7,6 +7,7 @@ export const site = {
     { label: "Inicio", href: "/", icon: "home" },
     { label: "Cuentas", href: "/cuentas", icon: "wallet" },
     { label: "Movimientos", href: "/movimientos", icon: "movement" },
+    { label: "Beneficios", href: "/beneficios", icon: "discount" },
     { label: "Grupos", href: "/grupos", icon: "group" },
     { label: "Recordatorios", href: "/recordatorios", icon: "calendar" },
     { label: "Perfil", href: "/perfil", icon: "user" },

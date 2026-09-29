@@ -91,6 +91,7 @@ describe("AppShell", () => {
     expect(screen.getByRole("link", { name: "Inicio" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Cuentas" })).toHaveAttribute("href", "/cuentas");
     expect(screen.getByRole("link", { name: "Movimientos" })).toHaveAttribute("href", "/movimientos");
+    expect(screen.getByRole("link", { name: "Beneficios" })).toHaveAttribute("href", "/beneficios");
     expect(screen.getByRole("link", { name: "Grupos" })).toHaveAttribute("href", "/grupos");
     expect(screen.getByRole("link", { name: "Perfil" })).toHaveAttribute("href", "/perfil");
     expect(screen.getByText("Contenido de prueba")).toBeInTheDocument();
@@ -117,6 +118,18 @@ describe("AppShell", () => {
 
     expect(screen.getByRole("button", { name: "Mostrar saldos" })).toHaveAttribute("aria-pressed", "true");
     expect(window.localStorage.getItem("mis-finanzas:balances-hidden")).toBe("true");
+  });
+
+  it("marks benefits active and keeps seven items in the responsive navigation", () => {
+    mockedUsePathname.mockReturnValue("/beneficios");
+    render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
+    const navigation = screen.getByRole("navigation", { name: "Navegación principal" });
+    const list = within(navigation).getByRole("list");
+    expect(list).toHaveClass("grid-cols-4", "lg:block");
+    expect(within(list).getAllByRole("listitem")).toHaveLength(7);
+    const link = within(navigation).getByRole("link", { name: "Beneficios" });
+    expect(link).toHaveAttribute("aria-current", "page");
+    expect(link.querySelector("svg")).not.toBeNull();
   });
 
   it("marks the current main route in the navigation", () => {
