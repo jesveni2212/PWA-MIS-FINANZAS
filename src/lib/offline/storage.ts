@@ -1,14 +1,18 @@
 import type { PersonalLedger, PersonalTransactionDraft } from "@/lib/finance/types";
+import type { PersonalBenefit } from "@/lib/benefits/types";
 import type { PendingTransaction } from "@/lib/offline/sync";
 
 export const OFFLINE_DATABASE_NAME = "mis-finanzas-offline";
-export const OFFLINE_DATABASE_VERSION = 1;
+export const OFFLINE_DATABASE_VERSION = 2;
 
 type LedgerRecord = { userId: string; ledger: PersonalLedger; updatedAt: string };
+export type BenefitsRecord = { userId: string; benefits: PersonalBenefit[]; periodStart: string; updatedAt: string };
 
 export type OfflineStorageAdapter = {
   readLedger: (userId: string) => Promise<LedgerRecord | null>;
   writeLedger: (record: LedgerRecord) => Promise<void>;
+  readBenefits: (userId: string) => Promise<BenefitsRecord | null>;
+  writeBenefits: (record: BenefitsRecord) => Promise<void>;
   addOutbox: (record: PendingTransaction) => Promise<void>;
   listOutbox: (userId: string) => Promise<PendingTransaction[]>;
   removeOutbox: (userId: string, pendingId: string) => Promise<void>;
@@ -52,6 +56,7 @@ async function openDatabase(): Promise<IDBDatabase> {
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains("ledger")) database.createObjectStore("ledger", { keyPath: "userId" });
+      if (!database.objectStoreNames.contains("benefits")) database.createObjectStore("benefits", { keyPath: "userId" });
       if (!database.objectStoreNames.contains("outbox")) {
         const outbox = database.createObjectStore("outbox", { keyPath: "id" });
         outbox.createIndex("userId", "userId", { unique: false });
@@ -65,6 +70,27 @@ async function openDatabase(): Promise<IDBDatabase> {
 }
 
 const indexedDbAdapter: OfflineStorageAdapter = {
+  async readBenefits(userId) {
+    const database = await openDatabase();
+    try {
+      const transaction = database.transaction("benefits", "readonly");
+      const done = transactionDone(transaction);
+      const [result] = await Promise.all([requestResult(transaction.objectStore("benefits").get(userId)), done]);
+      return (result as BenefitsRecord | undefined) ?? null;
+    } finally {
+      database.close();
+    }
+  },
+  async writeBenefits(record) {
+    const database = await openDatabase();
+    try {
+      const transaction = database.transaction("benefits", "readwrite");
+      transaction.objectStore("benefits").put(record);
+      await transactionDone(transaction);
+    } finally {
+      database.close();
+    }
+  },
   async readLedger(userId) {
     const database = await openDatabase();
     try {
@@ -134,8 +160,9 @@ const indexedDbAdapter: OfflineStorageAdapter = {
   async clearUser(userId) {
     const database = await openDatabase();
     try {
-      const transaction = database.transaction(["ledger", "outbox"], "readwrite");
+      const transaction = database.transaction(["ledger", "outbox", "benefits"], "readwrite");
       transaction.objectStore("ledger").delete(userId);
+      transaction.objectStore("benefits").delete(userId);
       const outbox = transaction.objectStore("outbox");
       const records = await requestResult(outbox.index("userId").getAll(userId)) as PendingTransaction[];
       records.forEach((record) => outbox.delete(record.id));
@@ -186,6 +213,27 @@ export async function writeLedgerCache(userId: string, ledger: PersonalLedger, u
   assertUserId(userId);
   try {
     await requireAdapter().writeLedger({ userId, ledger, updatedAt });
+  } catch (error) {
+    throw unavailable(error);
+  }
+}
+
+export async function readBenefitsCache(userId: string, periodStart: string): Promise<Omit<BenefitsRecord, "userId"> | null> {
+  assertUserId(userId);
+  try {
+    const record = await requireAdapter().readBenefits(userId);
+    return record?.userId === userId && record.periodStart === periodStart
+      ? { benefits: record.benefits, periodStart: record.periodStart, updatedAt: record.updatedAt }
+      : null;
+  } catch (error) {
+    throw unavailable(error);
+  }
+}
+
+export async function writeBenefitsCache(userId: string, benefits: PersonalBenefit[], periodStart: string, updatedAt: string): Promise<void> {
+  assertUserId(userId);
+  try {
+    await requireAdapter().writeBenefits({ userId, benefits, periodStart, updatedAt });
   } catch (error) {
     throw unavailable(error);
   }
