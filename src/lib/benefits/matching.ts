@@ -4,6 +4,10 @@ import type {
   PersonalBenefit,
 } from "./types";
 
+// Money uses the database numeric(14,2) contract: quantize half-up to two decimals.
+const MONEY_DECIMAL_PLACES = 2;
+const MONEY_MINOR_UNIT_SCALE = 10n ** BigInt(MONEY_DECIMAL_PLACES);
+
 export function normalizeMerchant(value: string): string {
   return value
     .normalize("NFD")
@@ -24,7 +28,7 @@ function toMinorUnits(value: number): bigint {
   const [whole, fraction = ""] = coefficient.split(".");
   const digits = BigInt(`${whole}${fraction}`);
   const decimalPlaces = fraction.length - exponent;
-  const shift = 2 - decimalPlaces;
+  const shift = MONEY_DECIMAL_PLACES - decimalPlaces;
   const magnitude = shift >= 0
     ? digits * 10n ** BigInt(shift)
     : (() => {
@@ -48,8 +52,10 @@ function roundHalfUp(numerator: bigint, denominator: bigint): bigint {
 function fromMinorUnits(value: bigint): number {
   const sign = value < 0n ? "-" : "";
   const magnitude = value < 0n ? -value : value;
-  const whole = magnitude / 100n;
-  const fraction = (magnitude % 100n).toString().padStart(2, "0");
+  const whole = magnitude / MONEY_MINOR_UNIT_SCALE;
+  const fraction = (magnitude % MONEY_MINOR_UNIT_SCALE)
+    .toString()
+    .padStart(MONEY_DECIMAL_PLACES, "0");
   return Number(`${sign}${whole}.${fraction}`);
 }
 

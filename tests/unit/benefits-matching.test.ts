@@ -43,6 +43,8 @@ describe("benefit calculations", () => {
   it("derives the 20 percent rebate cap and remaining amounts", () => {
     expect(calculateRebateCap(600000, 2000)).toBe(120000);
     expect(calculateRebateCap(1, 2000)).toBe(0.2);
+    expect(calculateRebateCap(0.03, 2000)).toBe(0.01);
+    expect(calculateRebateCap(0.02, 2500)).toBe(0.01);
     expect(calculateBenefitPreview(benefit, { amount: 85000, occurredOn: "2026-09-15" })).toMatchObject({
       eligiblePurchase: 85000,
       estimatedRebate: 17000,
@@ -65,6 +67,23 @@ describe("benefit calculations", () => {
       estimatedRebate: 0.25,
       purchaseRemaining: 7.81,
       rebateRemaining: 1.56,
+    });
+  });
+
+  it("limits eligible purchase by the remaining rebate cap at the half-up threshold", () => {
+    const rebateLimitedBenefit = {
+      ...benefit,
+      purchaseCap: 1,
+      rebateCap: 0.01,
+      usedPurchase: 0,
+      usedRebate: 0,
+    };
+
+    expect(calculateBenefitPreview(rebateLimitedBenefit, { amount: 0.1, occurredOn: "2026-09-15" })).toMatchObject({
+      eligiblePurchase: 0.07,
+      estimatedRebate: 0.01,
+      purchaseRemaining: 0.93,
+      rebateRemaining: 0,
     });
   });
 
