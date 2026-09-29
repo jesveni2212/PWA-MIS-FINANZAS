@@ -10,13 +10,56 @@ export function normalizeMerchant(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("es")
     .trim()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+function toMinorUnits(value: number): bigint {
+  if (!Number.isFinite(value)) throw new RangeError("Benefit amounts must be finite numbers");
+
+  const text = Math.abs(value).toString().toLowerCase();
+  const [coefficient, exponentText] = text.split("e");
+  const exponent = exponentText ? Number(exponentText) : 0;
+  const [whole, fraction = ""] = coefficient.split(".");
+  const digits = BigInt(`${whole}${fraction}`);
+  const decimalPlaces = fraction.length - exponent;
+  const shift = 2 - decimalPlaces;
+  const magnitude = shift >= 0
+    ? digits * 10n ** BigInt(shift)
+    : (() => {
+        const divisor = 10n ** BigInt(-shift);
+        const quotient = digits / divisor;
+        const remainder = digits % divisor;
+        return quotient + (remainder * 2n >= divisor ? 1n : 0n);
+      })();
+
+  return value < 0 ? -magnitude : magnitude;
+}
+
+function roundHalfUp(numerator: bigint, denominator: bigint): bigint {
+  const sign = numerator < 0n ? -1n : 1n;
+  const magnitude = numerator < 0n ? -numerator : numerator;
+  const quotient = magnitude / denominator;
+  const remainder = magnitude % denominator;
+  return sign * (quotient + (remainder * 2n >= denominator ? 1n : 0n));
+}
+
+function fromMinorUnits(value: bigint): number {
+  const sign = value < 0n ? "-" : "";
+  const magnitude = value < 0n ? -value : value;
+  const whole = magnitude / 100n;
+  const fraction = (magnitude % 100n).toString().padStart(2, "0");
+  return Number(`${sign}${whole}.${fraction}`);
+}
+
+function toRateUnits(rateBps: number): bigint {
+  if (!Number.isSafeInteger(rateBps)) throw new RangeError("Benefit rates must be safe integers");
+  return BigInt(rateBps);
+}
+
 export function calculateRebateCap(purchaseCap: number, rateBps: number): number {
-  return Math.round((purchaseCap * rateBps) / 10_000);
+  return fromMinorUnits(roundHalfUp(toMinorUnits(purchaseCap) * toRateUnits(rateBps), 10_000n));
 }
 
 function isValidDate(value: string): boolean {
@@ -58,22 +101,27 @@ export function calculateBenefitPreview(
   benefit: PersonalBenefit,
   input: Pick<BenefitMatchInput, "amount" | "occurredOn">,
 ): BenefitPreview {
-  const purchaseRemaining = Math.max(0, benefit.purchaseCap - benefit.usedPurchase);
-  const rebateRemaining = Math.max(0, benefit.rebateCap - benefit.usedRebate);
-  const requestedAmount = Math.max(0, input.amount);
-  const eligibleByRebate = benefit.rateBps > 0
-    ? Math.floor((rebateRemaining * 10_000) / benefit.rateBps)
-    : 0;
-  const eligiblePurchase = Math.min(requestedAmount, purchaseRemaining, eligibleByRebate);
-  const estimatedRebate = Math.min(
-    rebateRemaining,
-    Math.round((eligiblePurchase * benefit.rateBps) / 10_000),
-  );
+  const purchaseAmountRemaining = toMinorUnits(benefit.purchaseCap) - toMinorUnits(benefit.usedPurchase);
+  const rebateAmountRemaining = toMinorUnits(benefit.rebateCap) - toMinorUnits(benefit.usedRebate);
+  const purchaseRemaining = purchaseAmountRemaining > 0n ? purchaseAmountRemaining : 0n;
+  const rebateRemaining = rebateAmountRemaining > 0n ? rebateAmountRemaining : 0n;
+  const requestedAmount = toMinorUnits(input.amount);
+  const rate = toRateUnits(benefit.rateBps);
+  let eligiblePurchase = requestedAmount > 0n ? requestedAmount : 0n;
+  if (eligiblePurchase > purchaseRemaining) eligiblePurchase = purchaseRemaining;
+  if (rate <= 0n || rebateRemaining <= 0n) {
+    eligiblePurchase = 0n;
+  } else {
+    // The strict half-up boundary prevents rounding the rebate above its cap.
+    const eligibleByRebate = (((rebateRemaining * 2n + 1n) * 10_000n) - 1n) / (rate * 2n);
+    if (eligiblePurchase > eligibleByRebate) eligiblePurchase = eligibleByRebate;
+  }
+  const estimatedRebate = roundHalfUp(eligiblePurchase * rate, 10_000n);
 
   return {
-    eligiblePurchase,
-    estimatedRebate,
-    purchaseRemaining: Math.max(0, purchaseRemaining - eligiblePurchase),
-    rebateRemaining: Math.max(0, rebateRemaining - estimatedRebate),
+    eligiblePurchase: fromMinorUnits(eligiblePurchase),
+    estimatedRebate: fromMinorUnits(estimatedRebate),
+    purchaseRemaining: fromMinorUnits(purchaseRemaining - eligiblePurchase),
+    rebateRemaining: fromMinorUnits(rebateRemaining - estimatedRebate),
   };
 }

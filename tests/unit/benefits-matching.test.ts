@@ -42,11 +42,29 @@ const input = {
 describe("benefit calculations", () => {
   it("derives the 20 percent rebate cap and remaining amounts", () => {
     expect(calculateRebateCap(600000, 2000)).toBe(120000);
+    expect(calculateRebateCap(1, 2000)).toBe(0.2);
     expect(calculateBenefitPreview(benefit, { amount: 85000, occurredOn: "2026-09-15" })).toMatchObject({
       eligiblePurchase: 85000,
       estimatedRebate: 17000,
       purchaseRemaining: 215000,
       rebateRemaining: 43000,
+    });
+  });
+
+  it("calculates fractional currency amounts at two decimal places", () => {
+    const fractionalBenefit = {
+      ...benefit,
+      purchaseCap: 10.05,
+      rebateCap: 2.01,
+      usedPurchase: 1.01,
+      usedRebate: 0.2,
+    };
+
+    expect(calculateBenefitPreview(fractionalBenefit, { amount: 1.23, occurredOn: "2026-09-15" })).toMatchObject({
+      eligiblePurchase: 1.23,
+      estimatedRebate: 0.25,
+      purchaseRemaining: 7.81,
+      rebateRemaining: 1.56,
     });
   });
 
@@ -73,6 +91,11 @@ describe("benefit matching", () => {
     expect(normalizeMerchant("  CAFÉ,  Ñandú S.A. ")).toBe("cafe nandu sa");
   });
 
+  it("matches punctuation variants such as S.A. and SA", () => {
+    const punctuatedBenefit = { ...benefit, merchantName: "CAFÉ, Ñandú S.A." };
+    expect(findMatchingBenefit([punctuatedBenefit], { ...input, merchant: "Cafe Nandu SA" })).toBe(punctuatedBenefit);
+  });
+
   it("matches a configured merchant alias", () => {
     expect(findMatchingBenefit([benefit], { ...input, merchant: "BIGGIE EXPRESS" })).toBe(benefit);
   });
@@ -90,6 +113,10 @@ describe("benefit matching", () => {
 
   it("does not match draft rules", () => {
     expect(findMatchingBenefit([{ ...benefit, status: "draft" }], input)).toBeNull();
+  });
+
+  it("does not match expired rules", () => {
+    expect(findMatchingBenefit([{ ...benefit, status: "expired" }], input)).toBeNull();
   });
 
   it("returns null when equally specific active candidates are ambiguous", () => {
