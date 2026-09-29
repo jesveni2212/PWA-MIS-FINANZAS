@@ -9,7 +9,9 @@ function nullableText(value: string | null): string | null {
 }
 
 function draftArguments(draft: PersonalBenefitDraft) {
-  if (!Number.isSafeInteger(draft.rateBps) || draft.rateBps < 1 || draft.rateBps > 10_000
+  // The first-version create/update RPCs support monthly rules only.
+  if (draft.recurrence !== "monthly"
+    || !Number.isSafeInteger(draft.rateBps) || draft.rateBps < 1 || draft.rateBps > 10_000
     || !Number.isFinite(draft.purchaseCap) || draft.purchaseCap <= 0 || draft.purchaseCap > 999_999_999_999.99) {
     throw new Error(personalBenefitSaveError);
   }

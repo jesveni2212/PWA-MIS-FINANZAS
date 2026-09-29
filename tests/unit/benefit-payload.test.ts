@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { parsePersonalBenefitsPayload, PersonalBenefitsLoadError, personalBenefitsLoadError } from "@/lib/benefits/benefit-payload";
-import { createPersonalBenefit, disablePersonalBenefit, duplicatePersonalBenefit, loadPersonalBenefits, updatePersonalBenefit } from "@/lib/benefits/repository";
+import { createPersonalBenefit, disablePersonalBenefit, duplicatePersonalBenefit, loadPersonalBenefits, personalBenefitSaveError, updatePersonalBenefit } from "@/lib/benefits/repository";
 import { loadPersonalBenefitsServer } from "@/lib/benefits/server";
 import type { PersonalBenefitDraft } from "@/lib/benefits/types";
 import { createClient } from "@/lib/supabase/client";
@@ -29,6 +29,10 @@ describe("benefit payload", () => {
       channel: "all", conditions: null, sourceUrl: null, sourceCheckedAt: null, status: "active",
     }]);
     expect(parsePersonalBenefitsPayload({ benefits: [] })).toEqual([]);
+  });
+
+  it("preserves weekly persisted rows for forward compatibility", () => {
+    expect(parsePersonalBenefitsPayload({ benefits: [{ ...row, recurrence: "weekly" }] })[0].recurrence).toBe("weekly");
   });
 
   it.each([
@@ -112,6 +116,14 @@ describe("benefit repositories", () => {
     expect(rpc).toHaveBeenLastCalledWith("duplicate_personal_benefit", { p_benefit_id: "benefit-1", p_valid_from: "2026-10-01", p_valid_until: "2026-10-31" });
     await disablePersonalBenefit("benefit-1");
     expect(rpc).toHaveBeenLastCalledWith("disable_personal_benefit", { p_benefit_id: "benefit-1" });
+  });
+
+  it("rejects weekly create/update drafts with the stable save error before contacting Supabase", async () => {
+    const weeklyDraft: PersonalBenefitDraft = { ...draft, recurrence: "weekly" };
+    await expect(createPersonalBenefit(weeklyDraft)).rejects.toThrow(personalBenefitSaveError);
+    await expect(updatePersonalBenefit("benefit-1", weeklyDraft)).rejects.toThrow(personalBenefitSaveError);
+    expect(createClient).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("rejects nonfinite amounts, fractional rates, malformed returned IDs, and private mutation errors", async () => {
