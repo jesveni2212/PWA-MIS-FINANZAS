@@ -177,7 +177,7 @@ Create two authenticated users and personal spaces, then assert:
 
 ```sql
 select lives_ok($$select public.create_personal_benefit(
-  'card-owner-account'::uuid, 'Biggie', ARRAY['Biggie Express'], ARRAY[2],
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid, 'Biggie', ARRAY['Biggie Express'], ARRAY[2],
   '2026-09-01'::date, '2026-09-30'::date, 2000, 600000, 'PYG',
   'all', null, 'https://official.example/promo', 'draft'
 )$$, 'the owner can create a draft benefit');
@@ -189,9 +189,9 @@ select is(
 );
 
 select lives_ok($$select public.record_personal_transaction(
-  'card_purchase', 'card-owner-account'::uuid, null, 85000,
+  'card_purchase', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid, null, 85000,
   '2026-09-15'::date, 'Comida', null, 'Biggie', '[]'::jsonb,
-  'client-benefit-transaction'::uuid
+  '11111111-1111-4111-8111-111111111111'::uuid
 )$$, 'a matching card purchase is accepted');
 
 select is(
