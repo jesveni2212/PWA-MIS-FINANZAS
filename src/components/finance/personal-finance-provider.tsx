@@ -120,12 +120,12 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
     return write;
   }, [showStorageWarning, userId]);
 
-  const refresh = useCallback(async () => {
+  const refreshLedger = useCallback(async (): Promise<boolean> => {
     const refreshGeneration = snapshotGenerationRef.current;
     setIsSyncing(true);
     try {
       const nextLedger = await loadPersonalLedger();
-      if (snapshotGenerationRef.current !== refreshGeneration) return;
+      if (snapshotGenerationRef.current !== refreshGeneration) return false;
       const acceptedGeneration = refreshGeneration + 1;
       snapshotGenerationRef.current = acceptedGeneration;
       const updatedAt = new Date().toISOString();
@@ -135,10 +135,15 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
       setFreshness("server");
       setLastUpdatedAt(updatedAt);
       await persistCache(nextLedger, updatedAt, acceptedGeneration);
+      return snapshotGenerationRef.current === acceptedGeneration;
     } finally {
       setIsSyncing(false);
     }
   }, [persistCache, renderPending, userId]);
+
+  const refresh = useCallback(async (): Promise<void> => {
+    await refreshLedger();
+  }, [refreshLedger]);
 
   const synchronize = useCallback((): Promise<void> => {
     if (syncPromiseRef.current) return syncPromiseRef.current;
@@ -168,11 +173,10 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
         });
         if (result.syncedCount > 0) {
           try {
-            await refresh();
+            if (await refreshLedger()) setSyncRevision((revision) => revision + 1);
           } catch {
             setFreshness("offline");
           }
-          setSyncRevision((revision) => revision + 1);
         }
       } finally {
         setIsSyncing(false);
@@ -184,7 +188,7 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
       () => { if (syncPromiseRef.current === sync) syncPromiseRef.current = null; },
     );
     return sync;
-  }, [refresh, setPending, showStorageWarning, userId]);
+  }, [refreshLedger, setPending, showStorageWarning, userId]);
 
   const queueTransaction = useCallback(async (draft: PersonalTransactionDraft & { clientOperationId: string }) => {
     let operation: PendingTransaction;

@@ -75,6 +75,14 @@ function SyncRevisionReader() {
   return <p>revisión de sync: {syncRevision}</p>;
 }
 
+function SyncRevisionAndPendingReader() {
+  const { ledger, syncRevision, pendingCount } = usePersonalFinance();
+  return <>
+    <p>revisión de sync: {syncRevision}</p>
+    <p>{ledger.accounts[0]?.name} / pendientes: {pendingCount}</p>
+  </>;
+}
+
 describe("PersonalFinanceProvider", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -376,5 +384,63 @@ describe("PersonalFinanceProvider", () => {
 
     completeRefresh(initialLedger);
     await waitFor(() => expect(screen.getByText("revisión de sync: 1")).toBeInTheDocument());
+  });
+
+  it("does not increment syncRevision when the authoritative refresh fails", async () => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    loadPersonalLedger.mockRejectedValueOnce(new Error("ledger unavailable"));
+    listPendingTransactions.mockResolvedValueOnce([{
+      id: "pending-revision-failure", userId: "user-revision-failure", draft: { operationType: "expense", sourceAccountId: "account-1", destinationAccountId: null, amount: 1, occurredOn: "2026-09-09", clientOperationId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd" }, createdAt: "2026-09-09T00:00:00.000Z", attempts: 0, status: "pending", lastError: null,
+    }]);
+
+    render(
+      <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-revision-failure">
+        <SyncRevisionAndPendingReader />
+      </PersonalFinanceProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Caja / pendientes: 1")).toBeInTheDocument());
+
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    window.dispatchEvent(new Event("online"));
+    await waitFor(() => expect(recordPersonalTransaction).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByText("Caja / pendientes: 0")).toBeInTheDocument());
+    await waitFor(() => expect(loadPersonalLedger).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByText("revisión de sync: 0")).toBeInTheDocument();
+    expect(removePendingTransaction).toHaveBeenCalledWith("user-revision-failure", "pending-revision-failure");
+  });
+
+  it("does not increment syncRevision when the authoritative refresh becomes stale", async () => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    let completeRefresh!: (ledger: typeof initialLedger) => void;
+    loadPersonalLedger.mockImplementation(() => new Promise((resolve) => { completeRefresh = resolve; }));
+    listPendingTransactions.mockResolvedValueOnce([{
+      id: "pending-revision-stale", userId: "user-revision-stale", draft: { operationType: "expense", sourceAccountId: "account-1", destinationAccountId: null, amount: 1, occurredOn: "2026-09-09", clientOperationId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee" }, createdAt: "2026-09-09T00:00:00.000Z", attempts: 0, status: "pending", lastError: null,
+    }]);
+
+    const view = render(
+      <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-revision-stale">
+        <SyncRevisionAndPendingReader />
+      </PersonalFinanceProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Caja / pendientes: 1")).toBeInTheDocument());
+
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    window.dispatchEvent(new Event("online"));
+    await waitFor(() => expect(recordPersonalTransaction).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(loadPersonalLedger).toHaveBeenCalledTimes(1));
+
+    const newerLedger = { ...initialLedger, accounts: [{ ...initialLedger.accounts[0]!, name: "Servidor vigente" }] };
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    view.rerender(
+      <PersonalFinanceProvider initialLedger={newerLedger} initialLedgerUpdatedAt="2026-09-09T00:01:00.000Z" userId="user-revision-stale">
+        <SyncRevisionAndPendingReader />
+      </PersonalFinanceProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Servidor vigente / pendientes: 0")).toBeInTheDocument());
+
+    completeRefresh(initialLedger);
+    await waitFor(() => expect(screen.getByText("revisión de sync: 0")).toBeInTheDocument());
+    expect(screen.getByText("Servidor vigente / pendientes: 0")).toBeInTheDocument();
   });
 });
