@@ -20,6 +20,7 @@ export type PersonalFinanceContextValue = {
   ledger: PersonalLedger;
   freshness: "server" | "cached" | "offline";
   lastUpdatedAt: string | null;
+  syncRevision: number;
   pendingCount: number;
   isSyncing: boolean;
   storageWarning: boolean;
@@ -86,6 +87,7 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
   const [ledger, setLedger] = useState(() => initialSnapshot.ledger);
   const [freshness, setFreshness] = useState<PersonalFinanceContextValue["freshness"]>(() => initialSnapshot === memorySnapshot ? "cached" : initialLedgerUpdatedAt === null ? "offline" : "server");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(initialSnapshot.updatedAt);
+  const [syncRevision, setSyncRevision] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [storageWarning, setStorageWarning] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -170,6 +172,7 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
           } catch {
             setFreshness("offline");
           }
+          setSyncRevision((revision) => revision + 1);
         }
       } finally {
         setIsSyncing(false);
@@ -306,7 +309,8 @@ function PersonalFinanceProviderForUser({ userId, initialLedger, initialLedgerUp
     storageWarning,
     refresh,
     recordTransaction,
-  }), [freshness, isSyncing, lastUpdatedAt, ledger, pendingCount, recordTransaction, refresh, storageWarning]);
+    syncRevision,
+  }), [freshness, isSyncing, lastUpdatedAt, ledger, pendingCount, recordTransaction, refresh, storageWarning, syncRevision]);
 
   return <PersonalFinanceContext.Provider value={value}>
     {children}

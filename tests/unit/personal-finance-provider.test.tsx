@@ -70,6 +70,11 @@ function LedgerAndPendingReader() {
   return <p>{ledger.accounts[0]?.name} / pendientes: {pendingCount}</p>;
 }
 
+function SyncRevisionReader() {
+  const { syncRevision } = usePersonalFinance();
+  return <p>revisión de sync: {syncRevision}</p>;
+}
+
 describe("PersonalFinanceProvider", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -343,5 +348,33 @@ describe("PersonalFinanceProvider", () => {
 
     completeSend("transaction-1");
     await waitFor(() => expect(screen.getByText("Caja / pendientes: 0")).toBeInTheDocument());
+  });
+
+  it("increments syncRevision only after the authoritative refresh finishes", async () => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    let completeSend!: (value: string) => void;
+    let completeRefresh!: (ledger: typeof initialLedger) => void;
+    recordPersonalTransaction.mockImplementation(() => new Promise<string>((resolve) => { completeSend = resolve; }));
+    loadPersonalLedger.mockImplementation(() => new Promise((resolve) => { completeRefresh = resolve; }));
+    listPendingTransactions.mockResolvedValueOnce([{
+      id: "pending-revision", userId: "user-revision", draft: { operationType: "expense", sourceAccountId: "account-1", destinationAccountId: null, amount: 1, occurredOn: "2026-09-09", clientOperationId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" }, createdAt: "2026-09-09T00:00:00.000Z", attempts: 0, status: "pending", lastError: null,
+    }]);
+
+    render(
+      <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt="2026-09-09T00:00:00.000Z" userId="user-revision">
+        <SyncRevisionReader />
+      </PersonalFinanceProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("revisión de sync: 0")).toBeInTheDocument());
+
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    window.dispatchEvent(new Event("online"));
+    await waitFor(() => expect(recordPersonalTransaction).toHaveBeenCalledTimes(1));
+    completeSend("transaction-1");
+    await waitFor(() => expect(loadPersonalLedger).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("revisión de sync: 0")).toBeInTheDocument();
+
+    completeRefresh(initialLedger);
+    await waitFor(() => expect(screen.getByText("revisión de sync: 1")).toBeInTheDocument());
   });
 });

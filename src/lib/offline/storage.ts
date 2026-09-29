@@ -3,7 +3,7 @@ import type { PersonalBenefit } from "@/lib/benefits/types";
 import type { PendingTransaction } from "@/lib/offline/sync";
 
 export const OFFLINE_DATABASE_NAME = "mis-finanzas-offline";
-export const OFFLINE_DATABASE_VERSION = 2;
+export const OFFLINE_DATABASE_VERSION = 3;
 
 type LedgerRecord = { userId: string; ledger: PersonalLedger; updatedAt: string };
 export type BenefitsRecord = { userId: string; benefits: PersonalBenefit[]; periodStart: string; updatedAt: string };
@@ -11,7 +11,7 @@ export type BenefitsRecord = { userId: string; benefits: PersonalBenefit[]; peri
 export type OfflineStorageAdapter = {
   readLedger: (userId: string) => Promise<LedgerRecord | null>;
   writeLedger: (record: LedgerRecord) => Promise<void>;
-  readBenefits: (userId: string) => Promise<BenefitsRecord | null>;
+  readBenefits: (userId: string, periodStart: string) => Promise<BenefitsRecord | null>;
   writeBenefits: (record: BenefitsRecord) => Promise<void>;
   addOutbox: (record: PendingTransaction) => Promise<void>;
   listOutbox: (userId: string) => Promise<PendingTransaction[]>;
@@ -47,6 +47,40 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
   });
 }
 
+function isCompositeBenefitsKeyPath(keyPath: string | string[] | null): boolean {
+  return Array.isArray(keyPath)
+    && keyPath.length === 2
+    && keyPath[0] === "userId"
+    && keyPath[1] === "periodStart";
+}
+
+function createBenefitsStore(database: IDBDatabase): IDBObjectStore {
+  const benefits = database.createObjectStore("benefits", { keyPath: ["userId", "periodStart"] });
+  benefits.createIndex("userId", "userId", { unique: false });
+  return benefits;
+}
+
+function migrateBenefitsStore(database: IDBDatabase, request: IDBOpenDBRequest): void {
+  const upgradeTransaction = request.transaction;
+  if (!upgradeTransaction) throw new Error("The offline database upgrade transaction is unavailable.");
+
+  const legacyBenefits = upgradeTransaction.objectStore("benefits");
+  if (isCompositeBenefitsKeyPath(legacyBenefits.keyPath)) {
+    if (!legacyBenefits.indexNames.contains("userId")) legacyBenefits.createIndex("userId", "userId", { unique: false });
+    return;
+  }
+
+  const legacyRecordsRequest = legacyBenefits.getAll();
+  legacyRecordsRequest.onsuccess = () => {
+    const records = legacyRecordsRequest.result as BenefitsRecord[];
+    database.deleteObjectStore("benefits");
+    const benefits = createBenefitsStore(database);
+    records.forEach((record) => {
+      if (record && typeof record.userId === "string" && typeof record.periodStart === "string") benefits.put(record);
+    });
+  };
+}
+
 async function openDatabase(): Promise<IDBDatabase> {
   const indexedDb = globalThis.indexedDB;
   if (!indexedDb) throw new OfflineStorageUnavailableError();
@@ -56,7 +90,8 @@ async function openDatabase(): Promise<IDBDatabase> {
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains("ledger")) database.createObjectStore("ledger", { keyPath: "userId" });
-      if (!database.objectStoreNames.contains("benefits")) database.createObjectStore("benefits", { keyPath: "userId" });
+      if (!database.objectStoreNames.contains("benefits")) createBenefitsStore(database);
+      else migrateBenefitsStore(database, request);
       if (!database.objectStoreNames.contains("outbox")) {
         const outbox = database.createObjectStore("outbox", { keyPath: "id" });
         outbox.createIndex("userId", "userId", { unique: false });
@@ -70,12 +105,12 @@ async function openDatabase(): Promise<IDBDatabase> {
 }
 
 const indexedDbAdapter: OfflineStorageAdapter = {
-  async readBenefits(userId) {
+  async readBenefits(userId, periodStart) {
     const database = await openDatabase();
     try {
       const transaction = database.transaction("benefits", "readonly");
-      const done = transactionDone(transaction);
-      const [result] = await Promise.all([requestResult(transaction.objectStore("benefits").get(userId)), done]);
+      const result = await requestResult(transaction.objectStore("benefits").get([userId, periodStart]));
+      await transactionDone(transaction);
       return (result as BenefitsRecord | undefined) ?? null;
     } finally {
       database.close();
@@ -162,9 +197,13 @@ const indexedDbAdapter: OfflineStorageAdapter = {
     try {
       const transaction = database.transaction(["ledger", "outbox", "benefits"], "readwrite");
       transaction.objectStore("ledger").delete(userId);
-      transaction.objectStore("benefits").delete(userId);
+      const benefits = transaction.objectStore("benefits");
       const outbox = transaction.objectStore("outbox");
-      const records = await requestResult(outbox.index("userId").getAll(userId)) as PendingTransaction[];
+      const [benefitKeys, records] = await Promise.all([
+        requestResult(benefits.index("userId").getAllKeys(userId)),
+        requestResult(outbox.index("userId").getAll(userId)) as Promise<PendingTransaction[]>,
+      ]);
+      benefitKeys.forEach((key) => benefits.delete(key));
       records.forEach((record) => outbox.delete(record.id));
       await transactionDone(transaction);
     } finally {
@@ -221,7 +260,7 @@ export async function writeLedgerCache(userId: string, ledger: PersonalLedger, u
 export async function readBenefitsCache(userId: string, periodStart: string): Promise<Omit<BenefitsRecord, "userId"> | null> {
   assertUserId(userId);
   try {
-    const record = await requireAdapter().readBenefits(userId);
+    const record = await requireAdapter().readBenefits(userId, periodStart);
     return record?.userId === userId && record.periodStart === periodStart
       ? { benefits: record.benefits, periodStart: record.periodStart, updatedAt: record.updatedAt }
       : null;

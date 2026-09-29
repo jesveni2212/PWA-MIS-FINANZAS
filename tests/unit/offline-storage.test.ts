@@ -31,7 +31,7 @@ const repository = vi.hoisted(() => ({
   loadPersonalBenefits: vi.fn(), createPersonalBenefit: vi.fn(), updatePersonalBenefit: vi.fn(),
   duplicatePersonalBenefit: vi.fn(), disablePersonalBenefit: vi.fn(),
 }));
-const finance = vi.hoisted(() => ({ context: null as { ledger: PersonalLedger } | null }));
+const finance = vi.hoisted(() => ({ context: null as { ledger: PersonalLedger; syncRevision?: number } | null }));
 vi.mock("@/lib/benefits/repository", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/benefits/repository")>(), ...repository,
 }));
@@ -51,17 +51,22 @@ function adapter(): OfflineStorageAdapter & { version: number } {
   const ledgers = new Map<string, { userId: string; ledger: PersonalLedger; updatedAt: string }>();
   const outbox = new Map<string, Awaited<ReturnType<typeof enqueueTransaction>>>();
   const benefits = new Map<string, BenefitsRecord>();
+  const benefitKey = (userId: string, periodStart: string) => `${userId}\u0000${periodStart}`;
   return {
     version: OFFLINE_DATABASE_VERSION,
     readLedger: async (userId) => ledgers.get(userId) ?? null,
     writeLedger: async (record) => { ledgers.set(record.userId, record); },
-    readBenefits: async (userId) => benefits.get(userId) ?? null,
-    writeBenefits: async (record) => { benefits.set(record.userId, record); },
+    readBenefits: async (userId, periodStart) => benefits.get(benefitKey(userId, periodStart)) ?? null,
+    writeBenefits: async (record) => { benefits.set(benefitKey(record.userId, record.periodStart), record); },
     addOutbox: async (record) => { outbox.set(record.id, record); },
     listOutbox: async (userId) => [...outbox.values()].filter((record) => record.userId === userId),
     removeOutbox: async (_userId, pendingId) => { outbox.delete(pendingId); },
     updateOutbox: async (_userId, pendingId, patch) => { const record = outbox.get(pendingId); if (record) outbox.set(pendingId, { ...record, ...patch }); },
-    clearUser: async (userId) => { ledgers.delete(userId); benefits.delete(userId); for (const record of outbox.values()) if (record.userId === userId) outbox.delete(record.id); },
+    clearUser: async (userId) => {
+      ledgers.delete(userId);
+      for (const [key, record] of benefits) if (record.userId === userId) benefits.delete(key);
+      for (const record of outbox.values()) if (record.userId === userId) outbox.delete(record.id);
+    },
   };
 }
 
@@ -73,7 +78,7 @@ describe("offline storage", () => {
 
   it("uses the versioned private database and keeps ledger/outbox data per user", async () => {
     expect(OFFLINE_DATABASE_NAME).toBe("mis-finanzas-offline");
-    expect(OFFLINE_DATABASE_VERSION).toBe(2);
+    expect(OFFLINE_DATABASE_VERSION).toBe(3);
     await writeLedgerCache("user-a", ledger, "2026-09-09T00:00:00.000Z");
     const pending = await enqueueTransaction("user-a", { operationType: "expense", sourceAccountId: "cash-1", destinationAccountId: null, amount: 1, occurredOn: "2026-09-09" });
 
@@ -107,12 +112,14 @@ describe("offline storage", () => {
   it("keeps benefit snapshots scoped to user and period and clears only the requested user", async () => {
     const updatedAt = "2026-09-29T00:00:00.000Z";
     await writeBenefitsCache("user-a", [], "2026-09-01", updatedAt);
+    await writeBenefitsCache("user-a", [], "2026-10-01", updatedAt);
     expect(await readBenefitsCache("user-a", "2026-09-01")).toEqual({ benefits: [], periodStart: "2026-09-01", updatedAt });
+    expect(await readBenefitsCache("user-a", "2026-10-01")).toEqual({ benefits: [], periodStart: "2026-10-01", updatedAt });
     expect(await readBenefitsCache("user-b", "2026-09-01")).toBeNull();
-    expect(await readBenefitsCache("user-a", "2026-10-01")).toBeNull();
     await writeBenefitsCache("user-b", [], "2026-09-01", updatedAt);
     await clearUserData("user-a");
     expect(await readBenefitsCache("user-a", "2026-09-01")).toBeNull();
+    expect(await readBenefitsCache("user-a", "2026-10-01")).toBeNull();
     expect(await readBenefitsCache("user-b", "2026-09-01")).not.toBeNull();
   });
 
@@ -137,13 +144,16 @@ describe("offline storage", () => {
     await expect(writeBenefitsCache("user-a", [], "2026-09-01", "now")).rejects.toBeInstanceOf(OfflineStorageUnavailableError);
   });
 
-  it("adds a userId-keyed benefits store during version 1 upgrade without recreating ledger/outbox", async () => {
+  it("creates a composite-key benefits store during upgrade without recreating ledger/outbox", async () => {
     resetOfflineStorageAdapterForTests();
     const createObjectStore = vi.fn();
+    const createIndex = vi.fn();
     const put = vi.fn();
-    const transaction = { objectStore: () => ({ put }), oncomplete: null as (() => void) | null };
+    const benefitsStore = { createIndex, put };
+    const transaction = { objectStore: () => benefitsStore, oncomplete: null as (() => void) | null };
     const database = {
-      objectStoreNames: { contains: (name: string) => name === "ledger" || name === "outbox" }, createObjectStore,
+      objectStoreNames: { contains: (name: string) => name === "ledger" || name === "outbox" },
+      createObjectStore: createObjectStore.mockReturnValue(benefitsStore),
       transaction: vi.fn(() => { queueMicrotask(() => transaction.oncomplete?.()); return transaction; }), close: vi.fn(),
     };
     const request = { result: database, onupgradeneeded: null as (() => void) | null, onsuccess: null as (() => void) | null };
@@ -153,10 +163,109 @@ describe("offline storage", () => {
     });
     vi.stubGlobal("indexedDB", { open });
     await writeBenefitsCache("user-a", [], "2026-09-01", "now");
-    expect(open).toHaveBeenCalledWith(OFFLINE_DATABASE_NAME, 2);
-    expect(createObjectStore.mock.calls).toEqual([["benefits", { keyPath: "userId" }]]);
+    expect(open).toHaveBeenCalledWith(OFFLINE_DATABASE_NAME, 3);
+    expect(createObjectStore.mock.calls).toEqual([["benefits", { keyPath: ["userId", "periodStart"] }]]);
+    expect(createIndex).toHaveBeenCalledWith("userId", "userId", { unique: false });
     expect(database.transaction).toHaveBeenCalledWith("benefits", "readwrite");
     expect(put).toHaveBeenCalledWith({ userId: "user-a", benefits: [], periodStart: "2026-09-01", updatedAt: "now" });
+    expect(database.close).toHaveBeenCalled();
+  });
+
+  it("migrates the legacy user-keyed benefits snapshot without touching ledger or outbox", async () => {
+    resetOfflineStorageAdapterForTests();
+    const legacyRecord = { userId: "user-a", benefits: [], periodStart: "2026-09-01", updatedAt: "legacy" } satisfies BenefitsRecord;
+    const createIndex = vi.fn();
+    const migratedPut = vi.fn();
+    const legacyGetAllRequest = { result: [legacyRecord], onsuccess: null as (() => void) | null };
+    const legacyStore = {
+      keyPath: "userId",
+      indexNames: { contains: () => false },
+      getAll: vi.fn(() => {
+        queueMicrotask(() => {
+          legacyGetAllRequest.onsuccess?.();
+          queueMicrotask(() => request.onsuccess?.());
+        });
+        return legacyGetAllRequest;
+      }),
+    };
+    const migratedStore = { createIndex, put: migratedPut };
+    const upgradeTransaction = { objectStore: vi.fn(() => legacyStore) };
+    const runtimeTransaction = { objectStore: vi.fn(() => migratedStore), oncomplete: null as (() => void) | null };
+    const database = {
+      objectStoreNames: { contains: (name: string) => ["ledger", "outbox", "benefits"].includes(name) },
+      deleteObjectStore: vi.fn(),
+      createObjectStore: vi.fn(() => migratedStore),
+      transaction: vi.fn(() => { queueMicrotask(() => runtimeTransaction.oncomplete?.()); return runtimeTransaction; }),
+      close: vi.fn(),
+    };
+    const request = {
+      result: database,
+      transaction: upgradeTransaction,
+      onupgradeneeded: null as (() => void) | null,
+      onsuccess: null as (() => void) | null,
+    };
+    const open = vi.fn(() => {
+      queueMicrotask(() => request.onupgradeneeded?.());
+      return request;
+    });
+    vi.stubGlobal("indexedDB", { open });
+
+    await writeBenefitsCache("user-a", [], "2026-10-01", "new");
+
+    expect(open).toHaveBeenCalledWith(OFFLINE_DATABASE_NAME, 3);
+    expect(database.deleteObjectStore).toHaveBeenCalledWith("benefits");
+    expect(database.deleteObjectStore).not.toHaveBeenCalledWith("ledger");
+    expect(database.deleteObjectStore).not.toHaveBeenCalledWith("outbox");
+    expect(database.createObjectStore).toHaveBeenCalledWith("benefits", { keyPath: ["userId", "periodStart"] });
+    expect(createIndex).toHaveBeenCalledWith("userId", "userId", { unique: false });
+    expect(migratedPut).toHaveBeenCalledWith(legacyRecord);
+    expect(migratedPut).toHaveBeenCalledWith({ userId: "user-a", benefits: [], periodStart: "2026-10-01", updatedAt: "new" });
+  });
+
+  it("uses the user index to clear every composite benefit period for one user", async () => {
+    resetOfflineStorageAdapterForTests();
+    const benefitKeys = [["user-a", "2026-09-01"], ["user-a", "2026-10-01"]];
+    const keysRequest = { result: benefitKeys, onsuccess: null as (() => void) | null };
+    const outboxRequest = { result: [] as unknown[], onsuccess: null as (() => void) | null };
+    const getAllKeys = vi.fn(() => {
+      queueMicrotask(() => keysRequest.onsuccess?.());
+      return keysRequest;
+    });
+    const getAll = vi.fn(() => {
+      queueMicrotask(() => {
+        outboxRequest.onsuccess?.();
+        setTimeout(() => transaction.oncomplete?.(), 0);
+      });
+      return outboxRequest;
+    });
+    const ledgerDelete = vi.fn();
+    const benefitsDelete = vi.fn();
+    const benefitsStore = { index: vi.fn(() => ({ getAllKeys })), delete: benefitsDelete };
+    const outboxStore = { index: vi.fn(() => ({ getAll })) };
+    const ledgerStore = { delete: ledgerDelete };
+    const transaction = {
+      objectStore: vi.fn((name: string) => name === "ledger" ? ledgerStore : name === "benefits" ? benefitsStore : outboxStore),
+      oncomplete: null as (() => void) | null,
+      onerror: null as (() => void) | null,
+      onabort: null as (() => void) | null,
+      error: null,
+    };
+    const database = { transaction: vi.fn(() => transaction), close: vi.fn(), objectStoreNames: { contains: () => true } };
+    const request = { result: database, onupgradeneeded: null as (() => void) | null, onsuccess: null as (() => void) | null };
+    const open = vi.fn(() => {
+      queueMicrotask(() => request.onsuccess?.());
+      return request;
+    });
+    vi.stubGlobal("indexedDB", { open });
+
+    await clearUserData("user-a");
+
+    expect(database.transaction).toHaveBeenCalledWith(["ledger", "outbox", "benefits"], "readwrite");
+    expect(ledgerDelete).toHaveBeenCalledWith("user-a");
+    expect(benefitsStore.index).toHaveBeenCalledWith("userId");
+    expect(getAllKeys).toHaveBeenCalledWith("user-a");
+    expect(benefitsDelete).toHaveBeenNthCalledWith(1, ["user-a", "2026-09-01"]);
+    expect(benefitsDelete).toHaveBeenNthCalledWith(2, ["user-a", "2026-10-01"]);
     expect(database.close).toHaveBeenCalled();
   });
 });
@@ -246,6 +355,23 @@ describe("benefits provider/cache boundary", () => {
     expect(repository.disablePersonalBenefit).not.toHaveBeenCalled();
   });
 
+  it("refreshes once after the finance provider reports a completed outbox sync", async () => {
+    finance.context = { ledger, syncRevision: 0 };
+    const view = render(tree("user-a", [benefit]));
+    await act(async () => undefined);
+    repository.loadPersonalBenefits.mockClear();
+    repository.loadPersonalBenefits.mockResolvedValue([{ ...benefit, usedPurchase: 500, usedRebate: 125 }]);
+
+    finance.context = { ledger, syncRevision: 1 };
+    view.rerender(tree("user-a", [benefit]));
+    await waitFor(() => expect(repository.loadPersonalBenefits).toHaveBeenCalledTimes(1));
+    expect(repository.loadPersonalBenefits).toHaveBeenCalledWith("2026-09-01");
+
+    view.rerender(tree("user-a", [benefit]));
+    await act(async () => undefined);
+    expect(repository.loadPersonalBenefits).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps weekly snapshots readable but rejects duplication before the repository", async () => {
     const weekly = { ...benefit, recurrence: "weekly" as const };
     render(tree("user-a", [weekly]));
@@ -287,7 +413,7 @@ describe("benefits provider/cache boundary", () => {
     await act(async () => { resolveOld([benefit]); await oldRefresh; });
     expect(context.benefits).toEqual([october]);
     expect((await readBenefitsCache("user-a", "2026-10-01"))?.benefits).toEqual([october]);
-    expect(await readBenefitsCache("user-a", "2026-09-01")).toBeNull();
+    expect((await readBenefitsCache("user-a", "2026-09-01"))?.benefits).toEqual([benefit]);
     await act(async () => { await context.refresh(); });
     expect(repository.loadPersonalBenefits).toHaveBeenLastCalledWith("2026-10-01");
     expect(mounts).toHaveBeenCalledTimes(1);
@@ -335,7 +461,7 @@ describe("benefits provider/cache boundary", () => {
     await act(async () => undefined);
     expect(context.benefits).toEqual(cached ? [october] : []);
     expect((await readBenefitsCache("user-a", "2026-10-01"))?.benefits).toEqual(cached ? [october] : undefined);
-    expect((await readBenefitsCache("user-a", "2026-09-01"))?.benefits).toEqual(cached ? undefined : [benefit]);
+    expect((await readBenefitsCache("user-a", "2026-09-01"))?.benefits).toEqual([benefit]);
   });
 
   it("surfaces typed load errors, retains data, and tolerates cache failures", async () => {

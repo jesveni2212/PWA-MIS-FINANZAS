@@ -104,6 +104,8 @@ function PersonalBenefitsProviderForUser({ userId, initialBenefits, initialError
   const hasSnapshotRef = useRef(initialBenefits !== null);
   const activePeriodRef = useRef(initialPeriod);
   const cacheWriteQueueRef = useRef(Promise.resolve());
+  const financeSyncRevision = personalFinance?.syncRevision ?? 0;
+  const observedFinanceSyncRevisionRef = useRef(financeSyncRevision);
 
   const persistCache = useCallback((benefits: PersonalBenefit[], generation: number, snapshotPeriod: string) => {
     const updatedAt = new Date().toISOString();
@@ -219,6 +221,12 @@ function PersonalBenefitsProviderForUser({ userId, initialBenefits, initialError
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [initialBenefits, initialError, initialPeriod, persistCache, refresh, restoreCache]);
+
+  useEffect(() => {
+    if (!mountedRef.current || financeSyncRevision <= observedFinanceSyncRevisionRef.current) return;
+    observedFinanceSyncRevisionRef.current = financeSyncRevision;
+    void refresh().catch(() => undefined);
+  }, [financeSyncRevision, refresh]);
 
   const pendingPurchases = useMemo(
     () => pendingCardPurchaseInputs(personalFinance?.ledger.transactions ?? []),
