@@ -112,6 +112,18 @@ select set_config('request.jwt.claim.sub', '10101010-1010-4010-8010-101010101010
 select lives_ok($$select public.duplicate_personal_benefit(current_setting('test.benefit_id')::uuid, '2026-10-01', '2026-10-31')$$,
   'the owner can duplicate to new dates');
 select is((select status from public.personal_benefits where valid_from = '2026-10-01'), 'draft', 'duplicates start as draft');
+reset role;
+update public.personal_benefits set recurrence = 'weekly' where id = current_setting('test.benefit_id')::uuid;
+set local role authenticated;
+select is(public.get_personal_benefits('2026-09-01') -> 'benefits' -> 0 ->> 'recurrence', 'weekly',
+  'persisted weekly rules remain readable');
+select throws_ok($$select public.duplicate_personal_benefit(current_setting('test.benefit_id')::uuid, '2026-11-01', '2026-11-30')$$,
+  '22023', 'Only monthly benefits can be duplicated', 'weekly duplication is rejected by the authoritative RPC');
+select is((select count(*)::integer from public.personal_benefits where valid_from = '2026-11-01'), 0,
+  'weekly duplication inserts no row');
+reset role;
+update public.personal_benefits set recurrence = 'monthly' where id = current_setting('test.benefit_id')::uuid;
+set local role authenticated;
 select lives_ok($$select public.disable_personal_benefit(current_setting('test.benefit_id')::uuid)$$, 'the owner can disable');
 select is(jsonb_array_length(public.get_personal_benefits('2026-09-01') -> 'benefits'), 0, 'disabled benefits are excluded from listing');
 select lives_ok($$select public.create_personal_benefit('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Expired', '{}', ARRAY[2]::smallint[],

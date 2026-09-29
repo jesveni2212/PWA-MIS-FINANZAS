@@ -1,9 +1,10 @@
-import { createElement } from "react";
+import { createElement, useEffect } from "react";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PersonalBenefitsProvider, usePersonalBenefits, type PersonalBenefitsContextValue, type PersonalBenefitsProviderProps } from "@/components/benefits/personal-benefits-provider";
 import { PersonalBenefitsLoadError, personalBenefitsLoadError } from "@/lib/benefits/benefit-payload";
+import { personalBenefitSaveError } from "@/lib/benefits/repository";
 import type { PersonalBenefit } from "@/lib/benefits/types";
 
 import {
@@ -30,10 +31,13 @@ const repository = vi.hoisted(() => ({
   loadPersonalBenefits: vi.fn(), createPersonalBenefit: vi.fn(), updatePersonalBenefit: vi.fn(),
   duplicatePersonalBenefit: vi.fn(), disablePersonalBenefit: vi.fn(),
 }));
-vi.mock("@/lib/benefits/repository", () => repository);
+vi.mock("@/lib/benefits/repository", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/benefits/repository")>(), ...repository,
+}));
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   resetOfflineStorageAdapterForTests();
   vi.unstubAllGlobals();
 });
@@ -195,12 +199,105 @@ describe("benefits provider/cache boundary", () => {
       await context.disableBenefit("benefit-1");
     });
     expect(repository.loadPersonalBenefits).toHaveBeenCalledTimes(4);
+    expect(repository.duplicatePersonalBenefit).toHaveBeenCalledWith("benefit-1", "2026-10-01", "2026-10-31", "monthly");
     expect(repository.loadPersonalBenefits).toHaveBeenLastCalledWith("2026-09-01");
     const calls = Object.values(repository).map((mock) => mock.mock.calls.length);
     expect(context.preview({ accountId: "card-1", merchant: "Super", amount: 100, occurredOn: "2026-09-29", currency: "PYG" }))
       .toEqual({ eligiblePurchase: 100, estimatedRebate: 25, purchaseRemaining: 700, rebateRemaining: 175 });
     expect(Object.values(repository).map((mock) => mock.mock.calls.length)).toEqual(calls);
     expect((await readBenefitsCache("user-a", "2026-09-01"))?.benefits).toEqual([benefit]);
+  });
+
+  it("keeps weekly snapshots readable but rejects duplication before the repository", async () => {
+    const weekly = { ...benefit, recurrence: "weekly" as const };
+    render(tree("user-a", [weekly]));
+    await act(async () => undefined);
+    expect(context.benefits).toEqual([weekly]);
+    await expect(context.duplicateBenefit(weekly.id, "2026-10-01", "2026-10-31")).rejects.toThrow(personalBenefitSaveError);
+    await expect(context.duplicateBenefit("missing", "2026-10-01", "2026-10-31")).rejects.toThrow(personalBenefitSaveError);
+    expect(repository.duplicatePersonalBenefit).not.toHaveBeenCalled();
+    expect(repository.loadPersonalBenefits).not.toHaveBeenCalled();
+  });
+
+  it.each(["online", "visibilitychange"])("loads the new automatic month on %s without remounting", async (event) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 30, 23, 59));
+    const mounts = vi.fn();
+    function MountedReader() {
+      useEffect(() => { mounts(); }, []);
+      return createElement(Reader);
+    }
+    render(createElement(PersonalBenefitsProvider, { userId: "user-a", initialBenefits: [benefit] } as PersonalBenefitsProviderProps, createElement(MountedReader)));
+    await act(async () => undefined);
+    expect(context.benefits).toEqual([benefit]);
+    expect((await readBenefitsCache("user-a", "2026-09-01"))?.benefits).toEqual([benefit]);
+    // Start a September load that must not overwrite the resumed October load.
+    let resolveOld!: (value: PersonalBenefit[]) => void;
+    repository.loadPersonalBenefits.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }));
+    let oldRefresh!: Promise<void>;
+    await act(async () => { oldRefresh = context.refresh(); });
+    expect(repository.loadPersonalBenefits).toHaveBeenLastCalledWith("2026-09-01");
+    const october = { ...benefit, id: "october", validFrom: "2026-10-01", validUntil: "2026-10-31" };
+    repository.loadPersonalBenefits.mockResolvedValue([october]);
+    vi.setSystemTime(new Date(2026, 9, 1, 0, 1));
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    await act(async () => {
+      (event === "online" ? window : document).dispatchEvent(new Event(event));
+    });
+    expect(repository.loadPersonalBenefits).toHaveBeenLastCalledWith("2026-10-01");
+    await act(async () => { resolveOld([benefit]); await oldRefresh; });
+    expect(context.benefits).toEqual([october]);
+    expect((await readBenefitsCache("user-a", "2026-10-01"))?.benefits).toEqual([october]);
+    expect(await readBenefitsCache("user-a", "2026-09-01")).toBeNull();
+    await act(async () => { await context.refresh(); });
+    expect(repository.loadPersonalBenefits).toHaveBeenLastCalledWith("2026-10-01");
+    expect(mounts).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["online", "visibilitychange"])("preserves an explicit period after a month change on %s", async (event) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 30, 23, 59));
+    render(tree("user-a", [benefit]));
+    await act(async () => undefined);
+    vi.setSystemTime(new Date(2026, 9, 1, 0, 1));
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    await act(async () => {
+      (event === "online" ? window : document).dispatchEvent(new Event(event));
+    });
+    expect(repository.loadPersonalBenefits).toHaveBeenLastCalledWith("2026-09-01");
+    expect((await readBenefitsCache("user-a", "2026-09-01"))?.benefits).toEqual([benefit]);
+    expect(await readBenefitsCache("user-a", "2026-10-01")).toBeNull();
+  });
+
+  it.each([true, false])("uses only the new month's cache on a failed resume (cache present: %s)", async (cached) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 30, 23, 59));
+    const automaticTree = () => createElement(PersonalBenefitsProvider, {
+      userId: "user-a", initialBenefits: [benefit],
+    } as PersonalBenefitsProviderProps, createElement(Reader));
+    const view = render(automaticTree());
+    await act(async () => undefined);
+    const october = { ...benefit, id: "october", validFrom: "2026-10-01", validUntil: "2026-10-31" };
+    if (cached) await writeBenefitsCache("user-a", [october], "2026-10-01", "2026-10-01T00:00:00Z");
+    vi.setSystemTime(new Date(2026, 9, 1, 0, 1));
+    repository.loadPersonalBenefits.mockRejectedValue(new Error("private network details"));
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    await act(async () => { window.dispatchEvent(new Event("online")); });
+    expect(repository.loadPersonalBenefits).toHaveBeenLastCalledWith("2026-10-01");
+    expect(context.benefits).toEqual(cached ? [october] : []);
+    expect(context.freshness).toBe(cached ? "cached" : "offline");
+    expect(context.error).toBe(personalBenefitsLoadError);
+    expect(context.isLoading).toBe(false);
+    // A new reference to the initial September props must not rehydrate them
+    // into October or write September data under the new cache period.
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    view.rerender(automaticTree());
+    await act(async () => undefined);
+    expect(context.benefits).toEqual(cached ? [october] : []);
+    expect((await readBenefitsCache("user-a", "2026-10-01"))?.benefits).toEqual(cached ? [october] : undefined);
+    expect((await readBenefitsCache("user-a", "2026-09-01"))?.benefits).toEqual(cached ? undefined : [benefit]);
   });
 
   it("surfaces typed load errors, retains data, and tolerates cache failures", async () => {

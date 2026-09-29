@@ -308,10 +308,13 @@ begin
   if not found then
     raise exception using errcode = '42501', message = 'Benefit ownership is required';
   end if;
+  if v_benefit.recurrence <> 'monthly' then
+    raise exception using errcode = '22023', message = 'Only monthly benefits can be duplicated';
+  end if;
   v_id := public.create_personal_benefit(v_benefit.account_id, v_benefit.merchant_name, v_benefit.merchant_aliases,
     v_benefit.weekdays, p_valid_from, p_valid_until, v_benefit.rate_bps, v_benefit.purchase_cap,
     v_benefit.currency, v_benefit.channel, v_benefit.conditions, v_benefit.source_url, 'draft');
-  update public.personal_benefits set recurrence = v_benefit.recurrence, source_checked_at = v_benefit.source_checked_at where id = v_id;
+  update public.personal_benefits set source_checked_at = v_benefit.source_checked_at where id = v_id;
   return v_id;
 end;
 $$;

@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { PersonalBenefitsLoadError, personalBenefitsLoadError } from "@/lib/benefits/benefit-payload";
 import { calculateBenefitPreview, findMatchingBenefit } from "@/lib/benefits/matching";
-import { createPersonalBenefit, disablePersonalBenefit, duplicatePersonalBenefit, loadPersonalBenefits, updatePersonalBenefit } from "@/lib/benefits/repository";
+import { createPersonalBenefit, disablePersonalBenefit, duplicatePersonalBenefit, loadPersonalBenefits, personalBenefitSaveError, updatePersonalBenefit } from "@/lib/benefits/repository";
 import type { BenefitMatchInput, BenefitPreview, PersonalBenefit, PersonalBenefitDraft } from "@/lib/benefits/types";
 import { readBenefitsCache, writeBenefitsCache } from "@/lib/offline/storage";
 
@@ -42,11 +42,12 @@ function online(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine !== false;
 }
 
-export function PersonalBenefitsProvider({ periodStart = currentPeriodStart(), ...props }: PersonalBenefitsProviderProps) {
-  return <PersonalBenefitsProviderForUser key={`${props.userId}:${periodStart}`} {...props} periodStart={periodStart} />;
+export function PersonalBenefitsProvider({ periodStart, ...props }: PersonalBenefitsProviderProps) {
+  return <PersonalBenefitsProviderForUser key={`${props.userId}:${periodStart ?? "current"}`} {...props} periodStart={periodStart} />;
 }
 
-function PersonalBenefitsProviderForUser({ userId, initialBenefits, initialError, periodStart, children }: PersonalBenefitsProviderProps & { periodStart: string }) {
+function PersonalBenefitsProviderForUser({ userId, initialBenefits, initialError, periodStart, children }: PersonalBenefitsProviderProps) {
+  const [initialPeriod] = useState(() => periodStart ?? currentPeriodStart());
   const [state, setState] = useState<BenefitsState>(() => ({
     benefits: initialBenefits ?? [],
     freshness: initialBenefits === null ? "offline" : "server",
@@ -56,50 +57,57 @@ function PersonalBenefitsProviderForUser({ userId, initialBenefits, initialError
   const mountedRef = useRef(false);
   const generationRef = useRef(0);
   const hasSnapshotRef = useRef(initialBenefits !== null);
+  const activePeriodRef = useRef(initialPeriod);
   const cacheWriteQueueRef = useRef(Promise.resolve());
 
-  const persistCache = useCallback((benefits: PersonalBenefit[], generation: number) => {
+  const persistCache = useCallback((benefits: PersonalBenefit[], generation: number, snapshotPeriod: string) => {
     const updatedAt = new Date().toISOString();
     const write = cacheWriteQueueRef.current.then(async () => {
       if (!mountedRef.current || generationRef.current !== generation) return;
-      await writeBenefitsCache(userId, benefits, periodStart, updatedAt);
+      await writeBenefitsCache(userId, benefits, snapshotPeriod, updatedAt);
     }).catch(() => undefined);
     // Benefit caching is optional. Its failure cannot reject a refresh or a
     // financial movement, and it never touches the ledger/outbox stores.
     cacheWriteQueueRef.current = write;
     return write;
-  }, [periodStart, userId]);
+  }, [userId]);
 
-  const restoreCache = useCallback(async (generation: number) => {
+  const restoreCache = useCallback(async (generation: number, snapshotPeriod: string) => {
     try {
-      const cache = await readBenefitsCache(userId, periodStart);
+      const cache = await readBenefitsCache(userId, snapshotPeriod);
       if (!cache || !mountedRef.current || generationRef.current !== generation || hasSnapshotRef.current) return;
       hasSnapshotRef.current = true;
       setState((previous) => ({ ...previous, benefits: cache.benefits, freshness: "cached" }));
     } catch {
       // The independent ledger must work even if benefit storage is unavailable.
     }
-  }, [periodStart, userId]);
+  }, [userId]);
 
   const refresh = useCallback(async () => {
     if (!mountedRef.current) return;
     const generation = ++generationRef.current;
-    setState((previous) => ({ ...previous, isLoading: true }));
+    const snapshotPeriod = periodStart ?? currentPeriodStart();
+    const periodChanged = activePeriodRef.current !== snapshotPeriod;
+    activePeriodRef.current = snapshotPeriod;
+    if (periodChanged) hasSnapshotRef.current = false;
+    setState((previous) => periodChanged
+      ? { benefits: [], freshness: "offline", error: null, isLoading: true }
+      : { ...previous, isLoading: true });
     try {
-      const benefits = await loadPersonalBenefits(periodStart);
+      const benefits = await loadPersonalBenefits(snapshotPeriod);
       if (!mountedRef.current || generationRef.current !== generation) return;
       if (benefits === null) {
         setState((previous) => ({ ...previous, freshness: "offline", error: null }));
-        await restoreCache(generation);
+        await restoreCache(generation, snapshotPeriod);
       } else {
         hasSnapshotRef.current = true;
         setState({ benefits, freshness: "server", error: null, isLoading: false });
-        await persistCache(benefits, generation);
+        await persistCache(benefits, generation, snapshotPeriod);
       }
     } catch {
       if (!mountedRef.current || generationRef.current !== generation) return;
       setState((previous) => ({ ...previous, freshness: "offline", error: personalBenefitsLoadError }));
-      await restoreCache(generation);
+      await restoreCache(generation, snapshotPeriod);
       throw new PersonalBenefitsLoadError();
     } finally {
       if (mountedRef.current && generationRef.current === generation) {
@@ -119,9 +127,11 @@ function PersonalBenefitsProviderForUser({ userId, initialBenefits, initialError
   }, [refresh]);
 
   const duplicateBenefit = useCallback(async (id: string, validFrom: string, validUntil: string) => {
-    await duplicatePersonalBenefit(id, validFrom, validUntil);
+    const benefit = state.benefits.find((benefit) => benefit.id === id);
+    if (!benefit || benefit.recurrence !== "monthly") throw new Error(personalBenefitSaveError);
+    await duplicatePersonalBenefit(id, validFrom, validUntil, benefit.recurrence);
     await refresh();
-  }, [refresh]);
+  }, [refresh, state.benefits]);
 
   const disableBenefit = useCallback(async (id: string) => {
     await disablePersonalBenefit(id);
@@ -133,12 +143,14 @@ function PersonalBenefitsProviderForUser({ userId, initialBenefits, initialError
     const generation = ++generationRef.current;
     const hydrate = async () => {
       if (!mountedRef.current || generationRef.current !== generation) return;
-      if (initialBenefits !== null) {
+      // Initial props belong to the mount period; never cache or restore that
+      // snapshot as a later automatic month when hydration runs again.
+      if (initialBenefits !== null && activePeriodRef.current === initialPeriod) {
         hasSnapshotRef.current = true;
         setState({ benefits: initialBenefits, freshness: "server", error: initialError ? personalBenefitsLoadError : null, isLoading: false });
-        await persistCache(initialBenefits, generation);
+        await persistCache(initialBenefits, generation, initialPeriod);
       } else {
-        await restoreCache(generation);
+        await restoreCache(generation, activePeriodRef.current);
       }
       if (mountedRef.current && generationRef.current === generation && online()) await refresh();
     };
@@ -161,7 +173,7 @@ function PersonalBenefitsProviderForUser({ userId, initialBenefits, initialError
       window.removeEventListener("offline", onOffline);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [initialBenefits, initialError, persistCache, refresh, restoreCache]);
+  }, [initialBenefits, initialError, initialPeriod, persistCache, refresh, restoreCache]);
 
   const preview = useCallback((input: BenefitMatchInput) => {
     const match = findMatchingBenefit(state.benefits, input);

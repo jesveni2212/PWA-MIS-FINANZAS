@@ -1,5 +1,5 @@
 import { parsePersonalBenefitsPayload, PersonalBenefitsLoadError } from "@/lib/benefits/benefit-payload";
-import type { PersonalBenefit, PersonalBenefitDraft } from "@/lib/benefits/types";
+import type { BenefitRecurrence, PersonalBenefit, PersonalBenefitDraft } from "@/lib/benefits/types";
 import { createClient } from "@/lib/supabase/client";
 
 export const personalBenefitSaveError = "No pudimos guardar el beneficio. Revisá los datos e intentá de nuevo.";
@@ -64,7 +64,10 @@ export async function updatePersonalBenefit(id: string, draft: PersonalBenefitDr
   await mutate("update_personal_benefit", { ...draftArguments(draft), p_benefit_id: id }, false);
 }
 
-export async function duplicatePersonalBenefit(id: string, validFrom: string, validUntil: string): Promise<string> {
+export async function duplicatePersonalBenefit(id: string, validFrom: string, validUntil: string, recurrence: BenefitRecurrence): Promise<string> {
+  // Require the source recurrence before contacting Supabase. The RPC also
+  // checks the stored row so stale or forged client metadata cannot bypass it.
+  if (recurrence !== "monthly") throw new Error(personalBenefitSaveError);
   return await mutate("duplicate_personal_benefit", { p_benefit_id: id, p_valid_from: validFrom, p_valid_until: validUntil }, true) as string;
 }
 

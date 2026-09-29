@@ -112,7 +112,7 @@ describe("benefit repositories", () => {
     expect(rpc).toHaveBeenLastCalledWith("create_personal_benefit", { ...args, p_aliases: null });
     await updatePersonalBenefit("benefit-1", { ...draft, status: "active" });
     expect(rpc).toHaveBeenLastCalledWith("update_personal_benefit", { ...args, p_benefit_id: "benefit-1", p_status: "active" });
-    expect(await duplicatePersonalBenefit("benefit-1", "2026-10-01", "2026-10-31")).toBe("benefit-new");
+    expect(await duplicatePersonalBenefit("benefit-1", "2026-10-01", "2026-10-31", "monthly")).toBe("benefit-new");
     expect(rpc).toHaveBeenLastCalledWith("duplicate_personal_benefit", { p_benefit_id: "benefit-1", p_valid_from: "2026-10-01", p_valid_until: "2026-10-31" });
     await disablePersonalBenefit("benefit-1");
     expect(rpc).toHaveBeenLastCalledWith("disable_personal_benefit", { p_benefit_id: "benefit-1" });
@@ -126,13 +126,27 @@ describe("benefit repositories", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it("rejects weekly duplication before creating a client or calling the RPC", async () => {
+    await expect(duplicatePersonalBenefit("benefit-1", "2026-10-01", "2026-10-31", "weekly"))
+      .rejects.toThrow(personalBenefitSaveError);
+    expect(createClient).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplication without source recurrence at runtime before contacting Supabase", async () => {
+    await expect(Reflect.apply(duplicatePersonalBenefit, undefined, ["benefit-1", "2026-10-01", "2026-10-31"]))
+      .rejects.toThrow(personalBenefitSaveError);
+    expect(createClient).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("rejects nonfinite amounts, fractional rates, malformed returned IDs, and private mutation errors", async () => {
     await expect(createPersonalBenefit({ ...draft, purchaseCap: Infinity })).rejects.toThrow(/guardar/);
     await expect(createPersonalBenefit({ ...draft, rateBps: 25.5 })).rejects.toThrow(/guardar/);
     expect(rpc).not.toHaveBeenCalled();
     rpc.mockResolvedValue({ data: null, error: null });
     await expect(createPersonalBenefit(draft)).rejects.toThrow(/guardar/);
-    await expect(duplicatePersonalBenefit("benefit-1", "2026-10-01", "2026-10-31")).rejects.toThrow(/guardar/);
+    await expect(duplicatePersonalBenefit("benefit-1", "2026-10-01", "2026-10-31", "monthly")).rejects.toThrow(/guardar/);
     rpc.mockRejectedValue(new Error("private SQL"));
     await expect(disablePersonalBenefit("benefit-1")).rejects.toThrow(/guardar/);
   });
