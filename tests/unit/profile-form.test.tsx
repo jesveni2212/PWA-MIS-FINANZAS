@@ -1,11 +1,18 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProfileForm } from "@/components/profile/profile-form";
 import { clearUserData } from "@/lib/offline/storage";
 import { createClient } from "@/lib/supabase/client";
 
 vi.mock("@/lib/supabase/client", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/offline/storage", () => ({ clearUserData: vi.fn() }));
+const biometric = vi.hoisted(() => ({
+  isBiometricSupported: vi.fn(),
+  getEnrollment: vi.fn(),
+  enrollBiometric: vi.fn(),
+  clearBiometric: vi.fn(),
+}));
+vi.mock("@/lib/auth/biometric", () => biometric);
 const mockedCreateClient = vi.mocked(createClient);
 
 function mockClient({ user = { id: "user-1", email: "ana@example.com" }, profile = { display_name: "Ana" } }: { user?: { id: string; email: string } | null; profile?: { display_name: string | null } | null } = {}) {
@@ -20,6 +27,12 @@ function mockClient({ user = { id: "user-1", email: "ana@example.com" }, profile
   return { update, updateEq, signOut };
 }
 
+beforeEach(() => {
+  for (const mock of Object.values(biometric)) mock.mockReset();
+  biometric.isBiometricSupported.mockResolvedValue(false);
+  biometric.getEnrollment.mockReturnValue(null);
+  biometric.enrollBiometric.mockResolvedValue(true);
+});
 afterEach(() => { cleanup(); mockedCreateClient.mockReset(); });
 
 describe("ProfileForm", () => {
@@ -64,5 +77,81 @@ describe("ProfileForm", () => {
 
     await waitFor(() => expect(clearUserData).toHaveBeenCalledWith("user-1"));
     expect(signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the biometric enrollment when signing out", async () => {
+    mockClient();
+    render(<ProfileForm />);
+    await screen.findByDisplayValue("Ana");
+    fireEvent.click(screen.getByRole("button", { name: /Cerrar sesi.n/ }));
+
+    await waitFor(() => expect(biometric.clearBiometric).toHaveBeenCalled());
+  });
+
+  describe("biometric toggle", () => {
+    const toggleName = "Desbloquear con huella o Face ID";
+
+    it("is hidden when the device does not support it", async () => {
+      mockClient();
+      render(<ProfileForm />);
+      await screen.findByDisplayValue("Ana");
+      expect(screen.queryByLabelText(toggleName)).not.toBeInTheDocument();
+    });
+
+    it("is unchecked without an enrollment and checked with the current user's enrollment", async () => {
+      biometric.isBiometricSupported.mockResolvedValue(true);
+      mockClient();
+      const first = render(<ProfileForm />);
+      expect(await screen.findByLabelText(toggleName)).not.toBeChecked();
+      first.unmount();
+
+      biometric.getEnrollment.mockReturnValue({ userId: "user-1", credentialId: "abc" });
+      mockClient();
+      render(<ProfileForm />);
+      expect(await screen.findByLabelText(toggleName)).toBeChecked();
+    });
+
+    it("is unchecked when the enrollment belongs to another user", async () => {
+      biometric.isBiometricSupported.mockResolvedValue(true);
+      biometric.getEnrollment.mockReturnValue({ userId: "someone-else", credentialId: "abc" });
+      mockClient();
+      render(<ProfileForm />);
+      expect(await screen.findByLabelText(toggleName)).not.toBeChecked();
+    });
+
+    it("enrolls the current user when checked", async () => {
+      biometric.isBiometricSupported.mockResolvedValue(true);
+      mockClient();
+      render(<ProfileForm />);
+
+      fireEvent.click(await screen.findByLabelText(toggleName));
+
+      await waitFor(() => expect(screen.getByLabelText(toggleName)).toBeChecked());
+      expect(biometric.enrollBiometric).toHaveBeenCalledWith("user-1");
+    });
+
+    it("reverts and reports when enrollment fails", async () => {
+      biometric.isBiometricSupported.mockResolvedValue(true);
+      biometric.enrollBiometric.mockResolvedValue(false);
+      mockClient();
+      render(<ProfileForm />);
+
+      fireEvent.click(await screen.findByLabelText(toggleName));
+
+      expect(await screen.findByText("No pudimos activar la huella. Intentá de nuevo.")).toBeInTheDocument();
+      expect(screen.getByLabelText(toggleName)).not.toBeChecked();
+    });
+
+    it("clears the enrollment when unchecked", async () => {
+      biometric.isBiometricSupported.mockResolvedValue(true);
+      biometric.getEnrollment.mockReturnValue({ userId: "user-1", credentialId: "abc" });
+      mockClient();
+      render(<ProfileForm />);
+
+      fireEvent.click(await screen.findByLabelText(toggleName));
+
+      await waitFor(() => expect(screen.getByLabelText(toggleName)).not.toBeChecked());
+      expect(biometric.clearBiometric).toHaveBeenCalledTimes(1);
+    });
   });
 });
