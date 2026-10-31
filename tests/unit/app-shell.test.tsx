@@ -42,11 +42,21 @@ describe("AppShell greeting", () => {
     const mobileGreeting = within(mobileHeader).getByText(expectedGreeting);
     const desktopGreeting = within(desktopSidebar).getByText(expectedGreeting);
 
-    expect(mobileGreeting).toHaveClass("min-w-0", "flex-1", "truncate", "text-right");
+    expect(mobileGreeting).toHaveClass("min-w-0", "flex-1", "truncate", "text-left");
     expect(desktopGreeting).toHaveClass("min-w-0", "truncate");
     expect(mobileGreeting.textContent).toBe(expectedGreeting);
     expect(desktopGreeting.textContent).toBe(expectedGreeting);
     expect(within(mobileHeader).getByText("Mis Finanzas")).toHaveClass("shrink-0");
+  });
+
+  it("shows the greeting on its own row, not squeezed next to the menu and avatar", () => {
+    render(<AppShell displayName="Alejandro Florentin"><p>Contenido</p></AppShell>);
+
+    const header = screen.getByRole("banner");
+    const greeting = within(header).getByText("Hola, Alejandro Florentin");
+
+    expect(greeting.parentElement).not.toContainElement(within(header).getByRole("button", { name: "Abrir menú" }));
+    expect(greeting.parentElement).not.toContainElement(within(header).getByRole("link", { name: "Abrir perfil" }));
   });
 
   it("keeps the generic greeting when no display name is provided", () => {

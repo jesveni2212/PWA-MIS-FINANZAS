@@ -105,7 +105,6 @@ export function AppShell({ children, displayName, avatarPath = null, userId }: A
           </button>
           <p className="shrink-0 font-serif text-xl font-semibold tracking-tight">{site.name}</p>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-            <p className="min-w-0 flex-1 truncate text-right text-sm font-semibold text-text">{greeting}</p>
             <button
               aria-label={visibilityLabel}
               aria-pressed={balancesHidden}
@@ -125,7 +124,10 @@ export function AppShell({ children, displayName, avatarPath = null, userId }: A
             </Link>
           </div>
         </div>
-        <div className="mt-2 text-right"><FinanceSyncStatus /></div>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-text">{greeting}</p>
+          <FinanceSyncStatus />
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-6xl px-5 py-8 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-8 lg:px-12 lg:py-12">
