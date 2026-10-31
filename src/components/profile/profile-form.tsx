@@ -18,6 +18,7 @@ export function ProfileForm() {
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricOn, setBiometricOn] = useState(false);
+  const [biometricBusy, setBiometricBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -83,11 +84,13 @@ export function ProfileForm() {
   }
 
   async function toggleBiometric(enabled: boolean) {
-    if (!userId) return;
+    if (!userId || biometricBusy) return;
     setMessage("");
     if (!enabled) { clearBiometric(); setBiometricOn(false); return; }
-    setBiometricOn(true);
-    if (await enrollBiometric(userId)) return;
+    setBiometricOn(true); setBiometricBusy(true);
+    const enrolled = await enrollBiometric(userId, email);
+    setBiometricBusy(false);
+    if (enrolled) return;
     setBiometricOn(false);
     setMessage("No pudimos activar la huella. Intentá de nuevo.");
   }
@@ -119,7 +122,7 @@ export function ProfileForm() {
       <label className="grid gap-2 text-sm font-semibold" htmlFor="profile-name">Nombre
         <input className="rounded-xl border border-border bg-background px-4 py-3" id="profile-name" onChange={(event) => setDisplayName(event.target.value)} required value={displayName} />
       </label>
-      {biometricSupported ? <label className="flex items-center gap-3 text-sm font-semibold"><input checked={biometricOn} className="size-4" onChange={(event) => void toggleBiometric(event.target.checked)} type="checkbox" />Desbloquear con huella o Face ID</label> : null}
+      {biometricSupported ? <label className="flex items-center gap-3 text-sm font-semibold"><input checked={biometricOn} className="size-4" disabled={biometricBusy} onChange={(event) => void toggleBiometric(event.target.checked)} type="checkbox" />Desbloquear con huella o Face ID</label> : null}
       {message ? <p aria-live="polite" className={message === "Perfil actualizado." ? "text-brand" : "text-red-700"}>{message}</p> : null}
       <button className="w-fit rounded-xl bg-brand px-4 py-3 font-semibold text-brand-foreground disabled:cursor-not-allowed disabled:opacity-70" disabled={saving} type="submit">{saving ? "Guardando…" : "Guardar cambios"}</button>
       <button className="w-fit rounded-xl border border-border px-4 py-3 font-semibold" disabled={saving} onClick={() => void signOut()} type="button">Cerrar sesión</button>

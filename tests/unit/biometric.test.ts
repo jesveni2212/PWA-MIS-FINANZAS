@@ -21,6 +21,7 @@ const get = vi.fn();
 beforeEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
+  markLocked();
   create.mockReset();
   get.mockReset();
   vi.stubGlobal("navigator", { ...navigator, credentials: { create, get } });
@@ -71,6 +72,17 @@ describe("enrollBiometric", () => {
       userId: "u1",
       credentialId: "-_--",
     });
+  });
+
+  it("labels the credential with the given account label and keeps the userId as the handle", async () => {
+    create.mockResolvedValue({ rawId });
+
+    await enrollBiometric("u1", "ana@example.com");
+
+    const user = create.mock.calls[0][0].publicKey.user;
+    expect(user.name).toBe("ana@example.com");
+    expect(user.displayName).toBe("ana@example.com");
+    expect(new TextDecoder().decode(user.id)).toBe("u1");
   });
 
   it("stores nothing when the user cancels", async () => {
@@ -174,6 +186,18 @@ describe("unlock state", () => {
 
     expect(window.sessionStorage.getItem("mis-finanzas:hidden-at")).toBeNull();
     expect(shouldRelock(1_000_000 + relockAfterMs * 10)).toBe(false);
+  });
+
+  it("keeps the unlocked state in memory when sessionStorage is blocked", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new Error("blocked"); });
+
+    markUnlocked();
+    expect(isUnlocked()).toBe(true);
+
+    markLocked();
+    expect(isUnlocked()).toBe(false);
   });
 
   it("relocks only after the background threshold", () => {

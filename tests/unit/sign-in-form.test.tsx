@@ -89,6 +89,19 @@ describe("SignInForm remember email", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  it("remembers the submitted email even when React state is stale (autofill without input events)", async () => {
+    signInWithPassword.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+    render(<SignInForm />);
+
+    fireEvent.click(screen.getByLabelText("Recordar mi correo"));
+    (screen.getByLabelText("Correo electrónico") as HTMLInputElement).value = "auto@example.com";
+    fireEvent.change(screen.getByLabelText("Contraseña"), { target: { value: "segura123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar sesión" }));
+
+    await waitFor(() => expect(assign).toHaveBeenCalled());
+    expect(window.localStorage.getItem(emailKey)).toBe("auto@example.com");
+  });
+
   it("never persists the password in any storage", async () => {
     signInWithPassword.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
     render(<SignInForm />);
@@ -120,6 +133,17 @@ describe("SignInForm biometric offer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ahora no" }));
     expect(assign).toHaveBeenCalledWith("/perfil");
     expect(biometric.markUnlocked).toHaveBeenCalled();
+  });
+
+  it("labels the credential with the submitted email", async () => {
+    biometric.isBiometricSupported.mockResolvedValue(true);
+    render(<SignInForm />);
+
+    await submit("ana@example.com", "segura123");
+    await screen.findByText("¿Activar huella o Face ID?");
+    fireEvent.click(screen.getByRole("button", { name: "Activar" }));
+
+    await waitFor(() => expect(biometric.enrollBiometric).toHaveBeenCalledWith("u1", "ana@example.com"));
   });
 
   it("navigates straight away when biometrics are unsupported", async () => {

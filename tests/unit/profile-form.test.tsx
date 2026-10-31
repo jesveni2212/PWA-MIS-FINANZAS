@@ -127,7 +127,22 @@ describe("ProfileForm", () => {
       fireEvent.click(await screen.findByLabelText(toggleName));
 
       await waitFor(() => expect(screen.getByLabelText(toggleName)).toBeChecked());
-      expect(biometric.enrollBiometric).toHaveBeenCalledWith("user-1");
+      expect(biometric.enrollBiometric).toHaveBeenCalledWith("user-1", "ana@example.com");
+    });
+
+    it("disables the toggle while the enrollment prompt is open", async () => {
+      biometric.isBiometricSupported.mockResolvedValue(true);
+      let finish: (value: boolean) => void = () => {};
+      biometric.enrollBiometric.mockReturnValue(new Promise<boolean>((resolve) => { finish = resolve; }));
+      mockClient();
+      render(<ProfileForm />);
+
+      fireEvent.click(await screen.findByLabelText(toggleName));
+      expect(screen.getByLabelText(toggleName)).toBeDisabled();
+
+      finish(true);
+      await waitFor(() => expect(screen.getByLabelText(toggleName)).toBeEnabled());
+      expect(screen.getByLabelText(toggleName)).toBeChecked();
     });
 
     it("reverts and reports when enrollment fails", async () => {

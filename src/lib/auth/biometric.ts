@@ -6,6 +6,9 @@ const enrollmentKey = "mis-finanzas:biometric";
 const unlockedKey = "mis-finanzas:unlocked";
 const hiddenAtKey = "mis-finanzas:hidden-at";
 
+// Fallback for when sessionStorage is blocked; module state survives client-side navigation.
+let unlockedInMemory = false;
+
 type StorageKind = "local" | "session";
 
 // Storage can be blocked (private mode, quota); that must never break sign-in or the shell.
@@ -60,13 +63,13 @@ export function getEnrollment(): BiometricEnrollment | null {
   return null;
 }
 
-export async function enrollBiometric(userId: string): Promise<boolean> {
+export async function enrollBiometric(userId: string, label?: string): Promise<boolean> {
   try {
     const credential = await navigator.credentials.create({
       publicKey: {
         challenge: randomChallenge(),
         rp: { id: window.location.hostname, name: "Mis Finanzas" },
-        user: { id: new TextEncoder().encode(userId), name: userId, displayName: userId },
+        user: { id: new TextEncoder().encode(userId), name: label || userId, displayName: label || userId },
         pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
         authenticatorSelection: {
           authenticatorAttachment: "platform",
@@ -107,11 +110,13 @@ export async function unlockWithBiometric(): Promise<boolean> {
 }
 
 export function clearBiometric(): void {
+  unlockedInMemory = false;
   withStorage("local", undefined, (storage) => storage.removeItem(enrollmentKey));
   withStorage("session", undefined, (storage) => storage.removeItem(unlockedKey));
 }
 
 export function markUnlocked(): void {
+  unlockedInMemory = true;
   withStorage("session", undefined, (storage) => {
     storage.setItem(unlockedKey, "1");
     storage.removeItem(hiddenAtKey);
@@ -119,11 +124,12 @@ export function markUnlocked(): void {
 }
 
 export function markLocked(): void {
+  unlockedInMemory = false;
   withStorage("session", undefined, (storage) => storage.removeItem(unlockedKey));
 }
 
 export function isUnlocked(): boolean {
-  return withStorage("session", false, (storage) => storage.getItem(unlockedKey) === "1");
+  return unlockedInMemory || withStorage("session", false, (storage) => storage.getItem(unlockedKey) === "1");
 }
 
 export function markHidden(): void {

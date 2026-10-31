@@ -13,23 +13,26 @@ describe("BiometricOffer", () => {
   it("enrolls the user and then finishes when accepted", async () => {
     enrollBiometric.mockResolvedValue(true);
     const onDone = vi.fn();
-    render(<BiometricOffer onDone={onDone} userId="u1" />);
+    render(<BiometricOffer label="ana@example.com" onDone={onDone} userId="u1" />);
 
     expect(screen.getByText("¿Activar huella o Face ID?")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Activar" }));
 
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
-    expect(enrollBiometric).toHaveBeenCalledWith("u1");
+    expect(enrollBiometric).toHaveBeenCalledWith("u1", "ana@example.com");
   });
 
-  it("still finishes when enrollment fails", async () => {
+  it("reports a failed enrollment and waits for the user to continue", async () => {
     enrollBiometric.mockResolvedValue(false);
     const onDone = vi.fn();
     render(<BiometricOffer onDone={onDone} userId="u1" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Activar" }));
 
-    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("No pudimos activar la huella. Podés intentarlo más tarde desde tu perfil.")).toBeInTheDocument();
+    expect(onDone).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 
   it("finishes without enrolling when declined", () => {
