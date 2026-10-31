@@ -6,8 +6,17 @@ import { SignInForm } from "@/components/auth/sign-in-form";
 const signInWithPassword = vi.hoisted(() => vi.fn());
 const assign = vi.hoisted(() => vi.fn());
 
+const biometric = vi.hoisted(() => ({
+  isBiometricSupported: vi.fn(),
+  getEnrollment: vi.fn(),
+  enrollBiometric: vi.fn(),
+  clearBiometric: vi.fn(),
+  markUnlocked: vi.fn(),
+}));
+
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { signInWithPassword } }) }));
 vi.mock("@/lib/supabase/config", () => ({ isSupabaseConfigured: () => true }));
+vi.mock("@/lib/auth/biometric", () => biometric);
 
 const emailKey = "mis-finanzas:remembered-email";
 
@@ -16,6 +25,10 @@ beforeEach(() => {
   window.sessionStorage.clear();
   signInWithPassword.mockReset();
   assign.mockReset();
+  for (const mock of Object.values(biometric)) mock.mockReset();
+  biometric.isBiometricSupported.mockResolvedValue(false);
+  biometric.getEnrollment.mockReturnValue(null);
+  biometric.enrollBiometric.mockResolvedValue(true);
   Object.defineProperty(window, "location", { configurable: true, value: { ...window.location, assign } });
 });
 afterEach(cleanup);
@@ -90,5 +103,57 @@ describe("SignInForm remember email", () => {
         expect(stored).not.toContain("secreta-unica-987");
       }
     }
+  });
+});
+
+describe("SignInForm biometric offer", () => {
+  beforeEach(() => signInWithPassword.mockResolvedValue({ data: { user: { id: "u1" } }, error: null }));
+
+  it("offers activation and waits before navigating when supported and not enrolled", async () => {
+    biometric.isBiometricSupported.mockResolvedValue(true);
+    render(<SignInForm next="/perfil" />);
+
+    await submit("ana@example.com", "segura123");
+
+    await screen.findByText("¿Activar huella o Face ID?");
+    expect(assign).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Ahora no" }));
+    expect(assign).toHaveBeenCalledWith("/perfil");
+    expect(biometric.markUnlocked).toHaveBeenCalled();
+  });
+
+  it("navigates straight away when biometrics are unsupported", async () => {
+    render(<SignInForm />);
+
+    await submit("ana@example.com", "segura123");
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+    expect(biometric.markUnlocked).toHaveBeenCalled();
+    expect(screen.queryByText("¿Activar huella o Face ID?")).not.toBeInTheDocument();
+  });
+
+  it("keeps the enrollment of the same user and navigates", async () => {
+    biometric.isBiometricSupported.mockResolvedValue(true);
+    biometric.getEnrollment.mockReturnValue({ userId: "u1", credentialId: "abc" });
+    render(<SignInForm />);
+
+    await submit("ana@example.com", "segura123");
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+    expect(biometric.clearBiometric).not.toHaveBeenCalled();
+    expect(biometric.markUnlocked).toHaveBeenCalled();
+  });
+
+  it("clears the enrollment of a different user and offers activation again", async () => {
+    biometric.isBiometricSupported.mockResolvedValue(true);
+    biometric.getEnrollment.mockReturnValue({ userId: "u2", credentialId: "abc" });
+    render(<SignInForm />);
+
+    await submit("ana@example.com", "segura123");
+
+    await screen.findByText("¿Activar huella o Face ID?");
+    expect(biometric.clearBiometric).toHaveBeenCalledTimes(1);
+    // clearBiometric also drops the unlocked mark, so it must run first.
+    expect(biometric.markUnlocked.mock.invocationCallOrder[0]).toBeGreaterThan(biometric.clearBiometric.mock.invocationCallOrder[0]);
   });
 });
