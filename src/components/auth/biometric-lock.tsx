@@ -14,25 +14,34 @@ import {
 import { clearUserData } from "@/lib/offline/storage";
 import { createClient } from "@/lib/supabase/client";
 
-export function BiometricLock() {
+// An enrollment only guards the user who created it; for anyone else it is stale and must not lock their session.
+function ownedEnrollment(userId?: string) {
+  const enrollment = getEnrollment();
+  if (enrollment && userId && enrollment.userId !== userId) { clearBiometric(); return null; }
+  return enrollment;
+}
+
+export function BiometricLock({ userId }: { userId?: string }) {
   const [locked, setLocked] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const prompting = useRef(false);
 
   useEffect(() => {
     // Browser storage is only readable after mount; reading it in the initializer would break hydration.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (getEnrollment() && !isUnlocked()) setLocked(true);
-  }, []);
+    if (!ownedEnrollment(userId)) return;
+    // A restored page can skip visibilitychange, so the background threshold is checked here too.
+    if (!isUnlocked()) setLocked(true); // eslint-disable-line react-hooks/set-state-in-effect
+    else if (shouldRelock()) { markLocked(); setLocked(true); }
+  }, [userId]);
 
   useEffect(() => {
     function onVisibilityChange() {
       if (document.hidden) { markHidden(); return; }
-      if (getEnrollment() && shouldRelock()) { markLocked(); setLocked(true); }
+      if (ownedEnrollment(userId) && shouldRelock()) { markLocked(); setLocked(true); }
     }
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, []);
+  }, [userId]);
 
   const attempt = useCallback(async () => {
     if (prompting.current) return;
@@ -58,12 +67,15 @@ export function BiometricLock() {
         // A storage failure must not trap the user behind the lock.
       }
     }
+    // Keep the enrollment unless sign-out really ended the session; otherwise the lock would vanish with the session alive.
+    let signedOut = false;
     try {
-      await createClient().auth.signOut();
+      const { error } = await createClient().auth.signOut();
+      signedOut = !error;
     } catch {
       // Leave anyway; the proxy redirects unauthenticated requests.
     }
-    clearBiometric();
+    if (signedOut) clearBiometric();
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign("/acceso");
   }

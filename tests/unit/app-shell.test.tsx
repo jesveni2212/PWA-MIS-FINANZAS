@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "@/components/app-shell";
@@ -171,5 +171,16 @@ describe("AppShell biometric lock", () => {
     expect(await screen.findByRole("dialog", { name: "Aplicación bloqueada" })).toBeInTheDocument();
     expect(mockedCreateClient).not.toHaveBeenCalled();
     window.localStorage.removeItem("mis-finanzas:biometric");
+  });
+});
+
+describe("AppShell biometric lock ownership", () => {
+  it("does not lock a session that is not the enrolled user's", async () => {
+    window.localStorage.setItem("mis-finanzas:biometric", JSON.stringify({ userId: "u1", credentialId: "abc" }));
+    window.sessionStorage.clear();
+    render(<AppShell displayName={null} userId="u2"><p>Contenido</p></AppShell>);
+
+    await waitFor(() => expect(window.localStorage.getItem("mis-finanzas:biometric")).toBeNull());
+    expect(screen.queryByRole("dialog", { name: "Aplicación bloqueada" })).not.toBeInTheDocument();
   });
 });

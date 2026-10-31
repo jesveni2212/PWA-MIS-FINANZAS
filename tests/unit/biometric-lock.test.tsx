@@ -102,6 +102,52 @@ describe("BiometricLock", () => {
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/acceso"));
   });
 
+  it("locks on mount when the page is restored after the background threshold", async () => {
+    biometric.isUnlocked.mockReturnValue(true);
+    biometric.shouldRelock.mockReturnValue(true);
+    render(<BiometricLock />);
+
+    await screen.findByRole("dialog", { name: lockName });
+    expect(biometric.markLocked).toHaveBeenCalled();
+  });
+
+  it("keeps the enrollment when sign-out reports an error, but still leaves", async () => {
+    signOut.mockResolvedValue({ error: new Error("offline") });
+    render(<BiometricLock />);
+    await screen.findByRole("dialog", { name: lockName });
+
+    fireEvent.click(screen.getByRole("button", { name: "Usar contraseña" }));
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/acceso"));
+    expect(biometric.clearBiometric).not.toHaveBeenCalled();
+  });
+
+  it("keeps the enrollment when sign-out throws, but still leaves", async () => {
+    signOut.mockRejectedValue(new Error("network"));
+    render(<BiometricLock />);
+    await screen.findByRole("dialog", { name: lockName });
+
+    fireEvent.click(screen.getByRole("button", { name: "Usar contraseña" }));
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/acceso"));
+    expect(biometric.clearBiometric).not.toHaveBeenCalled();
+  });
+
+  it("drops an enrollment that belongs to another user instead of locking their session", async () => {
+    render(<BiometricLock userId="u2" />);
+
+    await waitFor(() => expect(biometric.clearBiometric).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("dialog", { name: lockName })).not.toBeInTheDocument();
+    expect(biometric.unlockWithBiometric).not.toHaveBeenCalled();
+  });
+
+  it("locks normally when the enrollment belongs to the signed-in user", async () => {
+    render(<BiometricLock userId="u1" />);
+
+    await screen.findByRole("dialog", { name: lockName });
+    expect(biometric.clearBiometric).not.toHaveBeenCalled();
+  });
+
   it("records when the app goes to the background", () => {
     biometric.isUnlocked.mockReturnValue(true);
     render(<BiometricLock />);

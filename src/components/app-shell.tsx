@@ -11,7 +11,7 @@ import { getGreetingLabel } from "@/lib/auth/greeting";
 import { isNavigationItemActive } from "@/lib/navigation";
 import { site } from "@/lib/site";
 
-type AppShellProps = { children: ReactNode; displayName: string | null; avatarPath?: string | null };
+type AppShellProps = { children: ReactNode; displayName: string | null; avatarPath?: string | null; userId?: string };
 type NavigationItem = (typeof site.navigation)[number];
 
 const balancePreferenceKey = "mis-finanzas:balances-hidden";
@@ -83,7 +83,7 @@ function NavigationLink({ item, pathname }: { item: NavigationItem; pathname: st
   );
 }
 
-export function AppShell({ children, displayName, avatarPath = null }: AppShellProps) {
+export function AppShell({ children, displayName, avatarPath = null, userId }: AppShellProps) {
   const greeting = getGreetingLabel(displayName);
   const avatarFallback = getAvatarFallback(displayName);
   const balancesHidden = useBalancesHidden();
@@ -100,7 +100,7 @@ export function AppShell({ children, displayName, avatarPath = null }: AppShellP
 
   return (
     <div className="min-h-dvh bg-background text-foreground lg:pl-64">
-      <BiometricLock />
+      <BiometricLock userId={userId} />
       <header className="border-b border-border/70 bg-background/85 px-5 py-4 backdrop-blur lg:hidden">
         <div className="flex items-center gap-4">
           <p className="shrink-0 font-serif text-xl font-semibold tracking-tight">{site.name}</p>

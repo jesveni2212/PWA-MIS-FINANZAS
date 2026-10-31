@@ -29,7 +29,7 @@ export default async function MovimientosPage({ searchParams }: { searchParams: 
 
   return (
     <PersonalFinanceProvider initialLedger={initialLedger} initialLedgerUpdatedAt={initialLedgerUpdatedAt} userId={session.userId}>
-      <AppShell avatarPath={session.avatarPath} displayName={session.displayName}>
+      <AppShell avatarPath={session.avatarPath} displayName={session.displayName} userId={session.userId}>
         <PersonalBenefitsProvider
           initialBenefits={benefitsResult.status === "fulfilled" ? benefitsResult.value : null}
           initialError={benefitsResult.status === "rejected" ? personalBenefitsLoadError : null}

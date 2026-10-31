@@ -112,7 +112,10 @@ export function clearBiometric(): void {
 }
 
 export function markUnlocked(): void {
-  withStorage("session", undefined, (storage) => storage.setItem(unlockedKey, "1"));
+  withStorage("session", undefined, (storage) => {
+    storage.setItem(unlockedKey, "1");
+    storage.removeItem(hiddenAtKey);
+  });
 }
 
 export function markLocked(): void {

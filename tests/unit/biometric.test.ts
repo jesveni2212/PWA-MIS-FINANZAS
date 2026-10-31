@@ -166,6 +166,16 @@ describe("unlock state", () => {
     expect(getEnrollment()).not.toBeNull();
   });
 
+  it("markUnlocked clears a stale hidden-at so a later reload does not relock", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    markHidden();
+
+    markUnlocked();
+
+    expect(window.sessionStorage.getItem("mis-finanzas:hidden-at")).toBeNull();
+    expect(shouldRelock(1_000_000 + relockAfterMs * 10)).toBe(false);
+  });
+
   it("relocks only after the background threshold", () => {
     expect(shouldRelock(1_000_000)).toBe(false);
     vi.spyOn(Date, "now").mockReturnValue(1_000_000);

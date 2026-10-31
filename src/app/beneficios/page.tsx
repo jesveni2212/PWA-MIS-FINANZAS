@@ -29,7 +29,7 @@ export default async function BeneficiosPage({ searchParams }: { searchParams: P
       initialLedgerUpdatedAt={financeResult.status === "fulfilled" ? new Date().toISOString() : null}
       userId={session.userId}
     >
-      <AppShell avatarPath={session.avatarPath} displayName={session.displayName}>
+      <AppShell avatarPath={session.avatarPath} displayName={session.displayName} userId={session.userId}>
         <PersonalBenefitsProvider
           initialBenefits={benefitsResult.status === "fulfilled" ? benefitsResult.value : null}
           initialError={benefitsResult.status === "rejected" ? personalBenefitsLoadError : null}
