@@ -13,7 +13,11 @@ vi.mock("@/lib/supabase/client", () => ({ createClient: vi.fn() }));
 
 const mockedCreateClient = vi.mocked(createClient);
 
-beforeEach(() => { mockedUsePathname.mockReturnValue("/"); });
+beforeEach(() => {
+  mockedUsePathname.mockReturnValue("/");
+  window.localStorage.removeItem("mis-finanzas:balances-hidden");
+  document.body.style.overflow = "";
+});
 afterEach(() => { cleanup(); mockedCreateClient.mockReset(); });
 
 describe("AppShell greeting", () => {
@@ -97,26 +101,37 @@ describe("AppShell", () => {
     expect(screen.getByText("Contenido de prueba")).toBeInTheDocument();
   });
 
-  it("keeps Profile out of the mobile dock while preserving it in the desktop sidebar", () => {
+  it("shows the sidebar only from the desktop breakpoint and keeps every section in it", () => {
     render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
 
     const navigation = screen.getByRole("navigation", { name: "Navegación principal" });
-    const profileLink = within(navigation).getByRole("link", { name: "Perfil" });
 
-    expect(navigation).toHaveClass("mobile-bottom-nav", "border-t", "bg-background/90");
-    expect(profileLink.closest("li")).toHaveClass("hidden", "lg:block");
-    expect(within(navigation).getByRole("link", { name: "Recordatorios" })).toHaveClass("min-h-14");
+    expect(navigation).toHaveClass("hidden", "lg:block");
+    expect(navigation).not.toHaveClass("mobile-bottom-nav");
+    expect(within(navigation).getByRole("link", { name: "Perfil" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Recordatorios" })).toBeInTheDocument();
   });
 
   it("persists the balance visibility preference", () => {
     render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
 
-    const concealButton = screen.getByRole("button", { name: "Ocultar saldos" });
+    const sidebar = screen.getByRole("navigation", { name: "Navegación principal" });
+    const concealButton = within(sidebar).getByRole("button", { name: "Ocultar saldos" });
     expect(concealButton).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(concealButton);
 
-    expect(screen.getByRole("button", { name: "Mostrar saldos" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(sidebar).getByRole("button", { name: "Mostrar saldos" })).toHaveAttribute("aria-pressed", "true");
+    expect(window.localStorage.getItem("mis-finanzas:balances-hidden")).toBe("true");
+  });
+
+  it("offers the balance toggle in the mobile header and shares the preference", () => {
+    render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
+
+    const header = screen.getByRole("banner");
+    fireEvent.click(within(header).getByRole("button", { name: "Ocultar saldos" }));
+
+    expect(within(header).getByRole("button", { name: "Mostrar saldos" })).toHaveAttribute("aria-pressed", "true");
     expect(window.localStorage.getItem("mis-finanzas:balances-hidden")).toBe("true");
   });
 
@@ -125,7 +140,6 @@ describe("AppShell", () => {
     render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
     const navigation = screen.getByRole("navigation", { name: "Navegación principal" });
     const list = within(navigation).getByRole("list");
-    expect(list).toHaveClass("grid-cols-4", "lg:block");
     expect(within(list).getAllByRole("listitem")).toHaveLength(7);
     const link = within(navigation).getByRole("link", { name: "Beneficios" });
     expect(link).toHaveAttribute("aria-current", "page");
@@ -138,7 +152,7 @@ describe("AppShell", () => {
 
     const currentLink = screen.getByRole("link", { name: "Movimientos" });
     expect(currentLink).toHaveAttribute("aria-current", "page");
-    expect(currentLink).toHaveClass("lg:border-signal/40", "lg:bg-brand-soft", "text-signal");
+    expect(currentLink).toHaveClass("border-signal/40", "bg-brand-soft", "text-signal");
     expect(screen.getByRole("link", { name: "Inicio" })).not.toHaveAttribute("aria-current");
   });
 
@@ -182,5 +196,99 @@ describe("AppShell biometric lock ownership", () => {
 
     await waitFor(() => expect(window.localStorage.getItem("mis-finanzas:biometric")).toBeNull());
     expect(screen.queryByRole("dialog", { name: "Aplicación bloqueada" })).not.toBeInTheDocument();
+  });
+});
+
+describe("AppShell mobile menu", () => {
+  function openMenu() {
+    const trigger = screen.getByRole("button", { name: "Abrir menú" });
+    fireEvent.click(trigger);
+    return { trigger, dialog: screen.getByRole("dialog", { name: "Menú" }) };
+  }
+
+  it("shows a closed hamburger button in the header and no bottom bar", () => {
+    render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
+
+    const trigger = within(screen.getByRole("banner")).getByRole("button", { name: "Abrir menú" });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog", { name: "Menú" })).not.toBeInTheDocument();
+    expect(document.querySelector(".mobile-bottom-nav")).toBeNull();
+  });
+
+  it("opens a panel with every section and marks the current one", () => {
+    mockedUsePathname.mockReturnValue("/beneficios");
+    render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
+
+    const { trigger, dialog } = openMenu();
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    const links = within(within(dialog).getByRole("navigation", { name: "Menú móvil" })).getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual(["Inicio", "Cuentas", "Movimientos", "Beneficios", "Grupos", "Recordatorios", "Perfil"]);
+    expect(within(dialog).getByRole("link", { name: "Beneficios" })).toHaveAttribute("aria-current", "page");
+    expect(within(dialog).getByRole("link", { name: "Inicio" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("moves focus into the panel when it opens", () => {
+    render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
+
+    const { dialog } = openMenu();
+
+    expect(within(dialog).getByRole("button", { name: "Cerrar menú" })).toHaveFocus();
+  });
+
+  it("closes with Escape and returns focus to the hamburger button", () => {
+    render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
+    const { trigger } = openMenu();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "Menú" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("closes with the close button and with a tap outside the panel", () => {
+    render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
+
+    fireEvent.click(within(openMenu().dialog).getByRole("button", { name: "Cerrar menú" }));
+    expect(screen.queryByRole("dialog", { name: "Menú" })).not.toBeInTheDocument();
+
+    openMenu();
+    fireEvent.click(screen.getByTestId("mobile-menu-backdrop"));
+    expect(screen.queryByRole("dialog", { name: "Menú" })).not.toBeInTheDocument();
+  });
+
+  it("closes after choosing a section", () => {
+    render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
+    const { dialog } = openMenu();
+
+    fireEvent.click(within(dialog).getByRole("link", { name: "Cuentas" }));
+
+    expect(screen.queryByRole("dialog", { name: "Menú" })).not.toBeInTheDocument();
+  });
+
+  it("keeps Tab focus inside the open panel", () => {
+    render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
+    const { dialog } = openMenu();
+    const close = within(dialog).getByRole("button", { name: "Cerrar menú" });
+    const last = within(dialog).getByRole("link", { name: "Perfil" });
+
+    last.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(close).toHaveFocus();
+
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(last).toHaveFocus();
+  });
+
+  it("locks page scrolling while open and restores it on close", () => {
+    render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
+    openMenu();
+    expect(document.body.style.overflow).toBe("hidden");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(document.body.style.overflow).toBe("");
   });
 });

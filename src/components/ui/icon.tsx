@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
 
-export const iconNames = ["home", "wallet", "movement", "discount", "group", "calendar", "user", "eye", "eye-off"] as const;
+export const iconNames = ["home", "wallet", "movement", "discount", "group", "calendar", "user", "eye", "eye-off", "menu", "close"] as const;
 
 export type IconName = (typeof iconNames)[number];
 
@@ -18,6 +18,8 @@ const paths: Record<IconName, ReactNode> = {
   calendar: <><rect x="3" y="4.5" width="18" height="17" rx="2" /><path d="M16 2.5v4M8 2.5v4M3 9.5h18" /><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></>,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c.8-4.3 3.4-6.5 8-6.5s7.2 2.2 8 6.5" /></>,
   eye: <><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" /><circle cx="12" cy="12" r="2.75" /></>,
+  menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+  close: <path d="m6 6 12 12M18 6 6 18" />,
   "eye-off": <><path d="m3 3 18 18" /><path d="M10.6 5.6A10.5 10.5 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a18.7 18.7 0 0 1-3 3.7" /><path d="M6.2 6.2A18 18 0 0 0 2.5 12S6 18.5 12 18.5c1.2 0 2.3-.3 3.3-.8" /><path d="M9.5 9.5a3.5 3.5 0 0 0 5 5" /></>,
 };
 

@@ -1,4 +1,5 @@
 import { authenticatedTest, expect } from "./fixtures/authenticated";
+import { openMainNavigation } from "./fixtures/navigation";
 
 const weekdayLabels = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
@@ -22,7 +23,9 @@ authenticatedTest.describe("beneficios de tarjetas", () => {
     await authenticatedPage.goto("/beneficios");
 
     await expect(authenticatedPage.getByRole("heading", { name: "Beneficios" })).toBeVisible();
-    await expect(authenticatedPage.getByRole("navigation", { name: "Navegación principal" }).getByRole("link", { name: "Beneficios" })).toHaveAttribute("aria-current", "page");
+    const navigation = await openMainNavigation(authenticatedPage);
+    await expect(navigation.getByRole("link", { name: "Beneficios" })).toHaveAttribute("aria-current", "page");
+    if (await authenticatedPage.getByRole("dialog", { name: "Menú" }).isVisible()) await authenticatedPage.keyboard.press("Escape");
     await expect(authenticatedPage.getByLabel("Período")).toBeVisible();
 
     const emptyState = authenticatedPage.getByText("Todavía no registraste tarjetas de crédito", { exact: true });

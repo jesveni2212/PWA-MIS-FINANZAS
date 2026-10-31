@@ -2,17 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { BiometricLock } from "@/components/auth/biometric-lock";
 import { Icon } from "@/components/ui/icon";
 import { useOptionalPersonalFinance } from "@/components/finance/personal-finance-provider";
+import { MobileMenu } from "@/components/mobile-menu";
+import { NavigationLink } from "@/components/navigation-link";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { getGreetingLabel } from "@/lib/auth/greeting";
 import { isNavigationItemActive } from "@/lib/navigation";
 import { site } from "@/lib/site";
 
 type AppShellProps = { children: ReactNode; displayName: string | null; avatarPath?: string | null; userId?: string };
-type NavigationItem = (typeof site.navigation)[number];
 
 const balancePreferenceKey = "mis-finanzas:balances-hidden";
 const balancePreferenceEvent = "mis-finanzas:balances-hidden-change";
@@ -64,31 +65,19 @@ function FinanceSyncStatus() {
   return <p aria-live="polite" className="text-xs font-medium text-muted">{label}</p>;
 }
 
-function NavigationLink({ item, pathname }: { item: NavigationItem; pathname: string }) {
-  const isActive = isNavigationItemActive(pathname, item.href);
-  const isProfile = item.href === "/perfil";
-
-  return (
-    <li className={isProfile ? "hidden lg:block" : undefined}>
-      <Link
-        aria-current={isActive ? "page" : undefined}
-        className={`group relative flex min-h-14 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border border-transparent px-0.5 py-2 text-center text-[11px] font-semibold leading-tight tracking-[0.02em] transition-colors hover:bg-panel-raised hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal lg:min-h-0 lg:flex-row lg:justify-start lg:gap-3 lg:px-3 lg:py-3 lg:text-left lg:text-sm ${isActive ? "text-signal lg:border-signal/40 lg:bg-brand-soft" : "text-muted"}`}
-        href={item.href}
-      >
-        <Icon className="size-5 shrink-0 transition-transform group-hover:-translate-y-0.5" name={item.icon} />
-        <span>{item.label}</span>
-        {isActive ? <span aria-hidden="true" className="absolute inset-x-1/4 bottom-1 h-0.5 rounded-full bg-signal shadow-sm lg:hidden" /> : null}
-      </Link>
-    </li>
-  );
-}
-
 export function AppShell({ children, displayName, avatarPath = null, userId }: AppShellProps) {
   const greeting = getGreetingLabel(displayName);
   const avatarFallback = getAvatarFallback(displayName);
   const balancesHidden = useBalancesHidden();
   const pathname = usePathname();
   const isProfileActive = isNavigationItemActive(pathname, "/perfil");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  const closeMenu = useCallback((restoreFocus: boolean) => {
+    setMenuOpen(false);
+    if (restoreFocus) menuButtonRef.current?.focus();
+  }, []);
 
   function toggleBalanceVisibility() {
     const nextHidden = !balancesHidden;
@@ -102,10 +91,30 @@ export function AppShell({ children, displayName, avatarPath = null, userId }: A
     <div className="min-h-dvh bg-background text-foreground lg:pl-64">
       <BiometricLock userId={userId} />
       <header className="border-b border-border/70 bg-background/85 px-5 py-4 backdrop-blur lg:hidden">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            aria-controls="mobile-menu"
+            aria-expanded={menuOpen}
+            aria-label="Abrir menú"
+            className="grid size-11 shrink-0 place-items-center rounded-full border border-line bg-panel-raised text-text transition-colors hover:border-signal hover:text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+            onClick={() => setMenuOpen(true)}
+            ref={menuButtonRef}
+            type="button"
+          >
+            <Icon className="size-5" name="menu" />
+          </button>
           <p className="shrink-0 font-serif text-xl font-semibold tracking-tight">{site.name}</p>
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
             <p className="min-w-0 flex-1 truncate text-right text-sm font-semibold text-text">{greeting}</p>
+            <button
+              aria-label={visibilityLabel}
+              aria-pressed={balancesHidden}
+              className="grid size-11 shrink-0 place-items-center rounded-full border border-line bg-panel-raised text-text transition-colors hover:border-signal hover:text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+              onClick={toggleBalanceVisibility}
+              type="button"
+            >
+              <Icon className="size-5" name={balancesHidden ? "eye" : "eye-off"} />
+            </button>
             <Link
               aria-current={isProfileActive ? "page" : undefined}
               aria-label="Abrir perfil"
@@ -119,41 +128,43 @@ export function AppShell({ children, displayName, avatarPath = null, userId }: A
         <div className="mt-2 text-right"><FinanceSyncStatus /></div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-5 py-8 pb-48 sm:px-8 lg:px-12 lg:py-12 lg:pb-12">
+      <main className="mx-auto w-full max-w-6xl px-5 py-8 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-8 lg:px-12 lg:py-12">
         {children}
       </main>
 
       <nav
         aria-label="Navegación principal"
-        className="mobile-bottom-nav fixed inset-x-3 z-20 border-t border-border/80 bg-background/90 px-1 py-1 shadow-lg shadow-black/15 backdrop-blur-lg lg:inset-y-0 lg:inset-x-auto lg:left-0 lg:right-auto lg:w-64 lg:rounded-none lg:border-r lg:border-t-0 lg:px-4 lg:py-6 lg:shadow-none"
+        className="fixed inset-y-0 left-0 z-20 hidden w-64 border-r border-border/80 bg-background/90 px-4 py-6 backdrop-blur-lg lg:block"
       >
-        <div className="relative mx-auto max-w-xl lg:flex lg:h-full lg:max-w-none lg:flex-col">
-          <div className="hidden border-b border-border/80 px-3 pb-7 lg:block">
+        <div className="flex h-full flex-col">
+          <div className="border-b border-border/80 px-3 pb-7">
             <p className="font-serif text-2xl font-semibold tracking-tight text-text">{site.name}</p>
             <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-muted">Libro personal</p>
             <div className="mt-3"><FinanceSyncStatus /></div>
           </div>
 
-          <ul className="grid grid-cols-4 gap-1 lg:mt-7 lg:block lg:space-y-1">
+          <ul className="mt-7 space-y-1">
             {site.navigation.map((item) => <NavigationLink item={item} key={item.href} pathname={pathname} />)}
           </ul>
 
-          <div className="hidden min-w-0 border-t border-border/80 px-3 pt-5 lg:mt-auto lg:block">
+          <div className="mt-auto min-w-0 border-t border-border/80 px-3 pt-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">Tu espacio</p>
             <p className="mt-1 min-w-0 truncate text-sm font-semibold text-text">{greeting}</p>
           </div>
 
           <button
             aria-pressed={balancesHidden}
-            className="absolute -top-14 right-1 grid size-11 place-items-center rounded-full border border-line bg-panel-raised text-text shadow-lg shadow-black/30 transition-colors hover:border-signal hover:text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal lg:static lg:mt-3 lg:flex lg:h-auto lg:w-full lg:items-center lg:justify-center lg:gap-3 lg:rounded-xl lg:px-3 lg:py-3 lg:text-sm lg:font-semibold"
+            className="mt-3 flex w-full items-center justify-center gap-3 rounded-xl border border-line bg-panel-raised px-3 py-3 text-sm font-semibold text-text transition-colors hover:border-signal hover:text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
             onClick={toggleBalanceVisibility}
             type="button"
           >
             <Icon className="size-5" name={balancesHidden ? "eye" : "eye-off"} />
-            <span className="sr-only lg:not-sr-only">{visibilityLabel}</span>
+            <span>{visibilityLabel}</span>
           </button>
         </div>
       </nav>
+
+      {menuOpen ? <MobileMenu onClose={closeMenu} pathname={pathname} /> : null}
     </div>
   );
 }

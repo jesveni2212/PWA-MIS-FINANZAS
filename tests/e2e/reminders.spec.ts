@@ -1,12 +1,15 @@
 import { authenticatedTest, expect } from "./fixtures/authenticated";
+import { openMainNavigation } from "./fixtures/navigation";
 
 authenticatedTest.describe("recordatorios", () => {
   authenticatedTest("muestra la navegación y los campos de repetición", async ({ authenticatedPage }) => {
     await authenticatedPage.goto("/recordatorios?x=1");
 
     await expect(authenticatedPage.getByRole("heading", { name: "Recordatorios" })).toBeVisible();
-    await expect(authenticatedPage.getByRole("link", { name: "Recordatorios" })).toHaveAttribute("aria-current", "page");
-    await expect(authenticatedPage.getByRole("navigation", { name: /Navegación principal/ }).getByRole("link")).toHaveCount(6);
+    const navigation = await openMainNavigation(authenticatedPage);
+    await expect(navigation.getByRole("link", { name: "Recordatorios" })).toHaveAttribute("aria-current", "page");
+    await expect(navigation.getByRole("link")).toHaveCount(7);
+    if (await authenticatedPage.getByRole("dialog", { name: "Menú" }).isVisible()) await authenticatedPage.keyboard.press("Escape");
 
     await authenticatedPage.getByRole("button", { name: "Nuevo recordatorio" }).click();
     await expect(authenticatedPage.getByLabel("Repetición")).toHaveValue("monthly");
