@@ -7,6 +7,7 @@ import {
   isBiometricSupported,
   isUnlocked,
   markHidden,
+  markLocked,
   markUnlocked,
   relockAfterMs,
   shouldRelock,
@@ -153,6 +154,16 @@ describe("unlock state", () => {
 
     expect(getEnrollment()).toBeNull();
     expect(isUnlocked()).toBe(false);
+  });
+
+  it("markLocked drops the unlocked mark but keeps the enrollment", () => {
+    window.localStorage.setItem("mis-finanzas:biometric", JSON.stringify({ userId: "u1", credentialId: "abc" }));
+    markUnlocked();
+
+    markLocked();
+
+    expect(isUnlocked()).toBe(false);
+    expect(getEnrollment()).not.toBeNull();
   });
 
   it("relocks only after the background threshold", () => {

@@ -161,3 +161,15 @@ describe("MoneyValue", () => {
     expect(screen.getByLabelText("Saldo oculto")).toBeInTheDocument();
   });
 });
+
+describe("AppShell biometric lock", () => {
+  it("shows the lock over the shell when a biometric enrollment exists and the session is locked", async () => {
+    window.localStorage.setItem("mis-finanzas:biometric", JSON.stringify({ userId: "u1", credentialId: "abc" }));
+    window.sessionStorage.clear();
+    render(<AppShell displayName={null}><p>Contenido</p></AppShell>);
+
+    expect(await screen.findByRole("dialog", { name: "Aplicación bloqueada" })).toBeInTheDocument();
+    expect(mockedCreateClient).not.toHaveBeenCalled();
+    window.localStorage.removeItem("mis-finanzas:biometric");
+  });
+});

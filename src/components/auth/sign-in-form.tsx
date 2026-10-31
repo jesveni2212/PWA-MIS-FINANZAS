@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState, useSyncExternalStore } from "react";
 import { AuthConfigurationNotice } from "@/components/auth/auth-configuration-notice";
 import { BiometricOffer } from "@/components/auth/biometric-offer";
 import { clearBiometric, getEnrollment, isBiometricSupported, markUnlocked } from "@/lib/auth/biometric";
@@ -9,18 +9,25 @@ import { forgetEmail, getRememberedEmail, rememberEmail } from "@/lib/auth/remem
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/client";
 
+function subscribeToNothing() {
+  return () => {};
+}
+
+function getServerRememberedEmail() {
+  return "";
+}
+
 export function SignInForm({ next = "/" }: { next?: string }) {
   const [showNotice, setShowNotice] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const [email, setEmail] = useState("");
-  const [remember, setRemember] = useState(false);
+  const [typedEmail, setEmail] = useState<string | null>(null);
+  const [rememberChoice, setRemember] = useState<boolean | null>(null);
   const [offerFor, setOfferFor] = useState<string | null>(null);
-
-  useEffect(() => {
-    const stored = getRememberedEmail();
-    if (stored) { setEmail(stored); setRemember(true); }
-  }, []);
+  // Browser storage is read after hydration; until the user edits, the stored values drive the fields.
+  const stored = useSyncExternalStore(subscribeToNothing, getRememberedEmail, getServerRememberedEmail);
+  const email = typedEmail ?? stored;
+  const remember = rememberChoice ?? stored !== "";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

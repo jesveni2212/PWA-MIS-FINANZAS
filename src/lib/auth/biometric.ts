@@ -115,6 +115,10 @@ export function markUnlocked(): void {
   withStorage("session", undefined, (storage) => storage.setItem(unlockedKey, "1"));
 }
 
+export function markLocked(): void {
+  withStorage("session", undefined, (storage) => storage.removeItem(unlockedKey));
+}
+
 export function isUnlocked(): boolean {
   return withStorage("session", false, (storage) => storage.getItem(unlockedKey) === "1");
 }

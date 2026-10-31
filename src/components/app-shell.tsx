@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSyncExternalStore, type ReactNode } from "react";
+import { BiometricLock } from "@/components/auth/biometric-lock";
 import { Icon } from "@/components/ui/icon";
 import { useOptionalPersonalFinance } from "@/components/finance/personal-finance-provider";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
@@ -99,6 +100,7 @@ export function AppShell({ children, displayName, avatarPath = null }: AppShellP
 
   return (
     <div className="min-h-dvh bg-background text-foreground lg:pl-64">
+      <BiometricLock />
       <header className="border-b border-border/70 bg-background/85 px-5 py-4 backdrop-blur lg:hidden">
         <div className="flex items-center gap-4">
           <p className="shrink-0 font-serif text-xl font-semibold tracking-tight">{site.name}</p>
